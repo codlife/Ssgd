@@ -15,7 +15,8 @@
  * limitations under the License.
  */
 
-package org.apache.spark.mllib.util
+package org.apache.spark.mllib.optimization
+
 import org.apache.spark.mllib.linalg.Vector
 import org.apache.spark.rdd.RDD
 

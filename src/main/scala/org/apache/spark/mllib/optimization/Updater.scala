@@ -14,10 +14,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.spark.mllib.util
-import scala.math._
-import breeze.linalg.{axpy => brzAxpy, norm => brzNorm, Vector => BV}
+package org.apache.spark.mllib.optimization
+
+import breeze.linalg.{Vector => BV, axpy => brzAxpy, norm => brzNorm}
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
+
+import scala.math._
 
 /**
  * :: DeveloperApi ::
@@ -145,8 +147,9 @@ class SquaredL2Updater extends Updater {
     brzWeights :*= (1.0 - thisIterStepSize * regParam)
     brzAxpy(-thisIterStepSize, gradient.asBreeze, brzWeights)
     val norm = brzNorm(brzWeights, 2.0)
-
+    println("this is my update")
     (Vectors.fromBreeze(brzWeights), 0.5 * regParam * norm * norm)
+
   }
 }
 

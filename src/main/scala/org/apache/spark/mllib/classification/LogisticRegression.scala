@@ -16,21 +16,18 @@
  */
 
 package org.apache.spark.mllib.classification
-
 import org.apache.spark.SparkContext
 import org.apache.spark.annotation.Since
-import org.apache.spark.ml.linalg.DenseMatrix
-import org.apache.spark.ml.util.Identifiable
 import org.apache.spark.mllib.classification.impl.GLMClassificationModel
 import org.apache.spark.mllib.linalg.BLAS.dot
-import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
-import org.apache.spark.mllib.optimization._
+import org.apache.spark.mllib.linalg.{DenseVector, Vector}
+import org.apache.spark.mllib.optimization.{LogisticGradient, SquaredL2Updater}
+import org.apache.spark.mllib.optimization.SGD.GradientDescent
 import org.apache.spark.mllib.pmml.PMMLExportable
 import org.apache.spark.mllib.regression._
 import org.apache.spark.mllib.util.{DataValidators, Loader, Saveable}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.SparkSession
-import org.apache.spark.storage.StorageLevel
+
 
 /**
  * Classification model trained using Multinomial/Binary Logistic Regression.
@@ -207,7 +204,7 @@ object LogisticRegressionModel extends Loader[LogisticRegressionModel] {
  * Using [[LogisticRegressionWithLBFGS]] is recommended over this.
  */
 @Since("0.8.0")
-class LogisticRegressionWithSGD private[mllib](
+class LogisticRegressionWithSGD  (
     private var stepSize: Double,
     private var numIterations: Int,
     private var regParam: Double,
@@ -332,129 +329,129 @@ object LogisticRegressionWithSGD {
   }
 }
 
-/**
- * Train a spark.classification model for Multinomial/Binary Logistic Regression using
- * Limited-memory BFGS. Standard feature scaling and L2 regularization are used by default.
- * NOTE: Labels used in Logistic Regression should be {0, 1, ..., k - 1}
- * for k classes multi-label spark.classification problem.
- *
- * Earlier implementations of LogisticRegressionWithLBFGS applies a regularization
- * penalty to all elements including the intercept. If this is called with one of
- * standard updaters (L1Updater, or SquaredL2Updater) this is translated
- * into a call to ml.LogisticRegression, otherwise this will use the existing mllib
- * GeneralizedLinearAlgorithm trainer, resulting in a regularization penalty to the
- * intercept.
- */
-@Since("1.1.0")
-class LogisticRegressionWithLBFGS
-  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
-
-    this.setFeatureScaling(true)
-
-    @Since("1.1.0")
-    override val optimizer = new LBFGS(new LogisticGradient, new SquaredL2Updater)
-
-    override protected val validators = List(multiLabelValidator)
-
-    private def multiLabelValidator: RDD[LabeledPoint] => Boolean = { data =>
-      if (numOfLinearPredictor > 1) {
-        DataValidators.multiLabelValidator(numOfLinearPredictor + 1)(data)
-      } else {
-        DataValidators.binaryLabelValidator(data)
-      }
-    }
-
-    /**
-     * Set the number of possible outcomes for k classes spark.classification problem in
-     * Multinomial Logistic Regression.
-     * By default, it is binary logistic regression so k will be set to 2.
-     */
-    @Since("1.3.0")
-    def setNumClasses(numClasses: Int): this.type = {
-      require(numClasses > 1)
-      numOfLinearPredictor = numClasses - 1
-      if (numClasses > 2) {
-        optimizer.setGradient(new LogisticGradient(numClasses))
-      }
-      this
-    }
-
-    override protected def createModel(weights: Vector, intercept: Double) = {
-      if (numOfLinearPredictor == 1) {
-        new LogisticRegressionModel(weights, intercept)
-      } else {
-        new LogisticRegressionModel(weights, intercept, numFeatures, numOfLinearPredictor + 1)
-      }
-    }
-
-    /**
-     * Run Logistic Regression with the configured parameters on an input RDD
-     * of LabeledPoint entries.
-     *
-     * If a known updater is used calls the ml implementation, to avoid
-     * applying a regularization penalty to the intercept, otherwise
-     * defaults to the mllib implementation. If more than two classes
-     * or feature scaling is disabled, always uses mllib implementation.
-     * If using ml implementation, uses ml code to generate initial weights.
-     */
-    override def run(input: RDD[LabeledPoint]): LogisticRegressionModel = {
-      run(input, generateInitialWeights(input), userSuppliedWeights = false)
-    }
-
-    /**
-     * Run Logistic Regression with the configured parameters on an input RDD
-     * of LabeledPoint entries starting from the initial weights provided.
-     *
-     * If a known updater is used calls the ml implementation, to avoid
-     * applying a regularization penalty to the intercept, otherwise
-     * defaults to the mllib implementation. If more than two classes
-     * or feature scaling is disabled, always uses mllib implementation.
-     * Uses user provided weights.
-     *
-     * In the ml LogisticRegression implementation, the number of corrections
-     * used in the LBFGS update can not be configured. So `optimizer.setNumCorrections()`
-     * will have no effect if we fall into that route.
-     */
-    override def run(input: RDD[LabeledPoint], initialWeights: Vector): LogisticRegressionModel = {
-      run(input, initialWeights, userSuppliedWeights = true)
-    }
-
-    private def run(input: RDD[LabeledPoint], initialWeights: Vector, userSuppliedWeights: Boolean):
-        LogisticRegressionModel = {
-      // ml's Logistic regression only supports binary spark.classification currently.
-      if (numOfLinearPredictor == 1) {
-        def runWithMlLogisticRegression(elasticNetParam: Double) = {
-          // Prepare the ml LogisticRegression based on our settings
-          val lr = new org.apache.spark.ml.classification.LogisticRegression()
-          lr.setRegParam(optimizer.getRegParam())
-          lr.setElasticNetParam(elasticNetParam)
-          lr.setStandardization(useFeatureScaling)
-          if (userSuppliedWeights) {
-            val uid = Identifiable.randomUID("logreg-static")
-            lr.setInitialModel(new org.apache.spark.ml.classification.LogisticRegressionModel(
-              uid, initialWeights.asML, 1.0))
-          }
-          lr.setFitIntercept(addIntercept)
-          lr.setMaxIter(optimizer.getNumIterations())
-          lr.setTol(optimizer.getConvergenceTol())
-          // Convert our input into a DataFrame
-          val spark = SparkSession.builder().sparkContext(input.context).getOrCreate()
-          val df = spark.createDataFrame(input.map(_.asML))
-          // Determine if we should cache the DF
-          val handlePersistence = input.getStorageLevel == StorageLevel.NONE
-          // Train our model
-          val mlLogisticRegressionModel = lr.train(df, handlePersistence)
-          // convert the model
-          val weights = Vectors.dense(mlLogisticRegressionModel.coefficients.toArray)
-          createModel(weights, mlLogisticRegressionModel.intercept)
-        }
-        optimizer.getUpdater() match {
-          case x: SquaredL2Updater => runWithMlLogisticRegression(0.0)
-          case x: L1Updater => runWithMlLogisticRegression(1.0)
-          case _ => super.run(input, initialWeights)
-        }
-      } else {
-        super.run(input, initialWeights)
-      }
-    }
-  }
+///**
+// * Train a spark.classification model for Multinomial/Binary Logistic Regression using
+// * Limited-memory BFGS. Standard feature scaling and L2 regularization are used by default.
+// * NOTE: Labels used in Logistic Regression should be {0, 1, ..., k - 1}
+// * for k classes multi-label spark.classification problem.
+// *
+// * Earlier implementations of LogisticRegressionWithLBFGS applies a regularization
+// * penalty to all elements including the intercept. If this is called with one of
+// * standard updaters (L1Updater, or SquaredL2Updater) this is translated
+// * into a call to ml.LogisticRegression, otherwise this will use the existing mllib
+// * GeneralizedLinearAlgorithm trainer, resulting in a regularization penalty to the
+// * intercept.
+// */
+//@Since("1.1.0")
+//class LogisticRegressionWithLBFGS
+//  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
+//
+//    this.setFeatureScaling(true)
+//
+//    @Since("1.1.0")
+//    override val optimizer = new LBFGS(new LogisticGradient, new SquaredL2Updater)
+//
+//    override protected val validators = List(multiLabelValidator)
+//
+//    private def multiLabelValidator: RDD[LabeledPoint] => Boolean = { data =>
+//      if (numOfLinearPredictor > 1) {
+//        DataValidators.multiLabelValidator(numOfLinearPredictor + 1)(data)
+//      } else {
+//        DataValidators.binaryLabelValidator(data)
+//      }
+//    }
+//
+//    /**
+//     * Set the number of possible outcomes for k classes spark.classification problem in
+//     * Multinomial Logistic Regression.
+//     * By default, it is binary logistic regression so k will be set to 2.
+//     */
+//    @Since("1.3.0")
+//    def setNumClasses(numClasses: Int): this.type = {
+//      require(numClasses > 1)
+//      numOfLinearPredictor = numClasses - 1
+//      if (numClasses > 2) {
+//        optimizer.setGradient(new LogisticGradient(numClasses))
+//      }
+//      this
+//    }
+//
+//    override protected def createModel(weights: Vector, intercept: Double) = {
+//      if (numOfLinearPredictor == 1) {
+//        new LogisticRegressionModel(weights, intercept)
+//      } else {
+//        new LogisticRegressionModel(weights, intercept, numFeatures, numOfLinearPredictor + 1)
+//      }
+//    }
+//
+//    /**
+//     * Run Logistic Regression with the configured parameters on an input RDD
+//     * of LabeledPoint entries.
+//     *
+//     * If a known updater is used calls the ml implementation, to avoid
+//     * applying a regularization penalty to the intercept, otherwise
+//     * defaults to the mllib implementation. If more than two classes
+//     * or feature scaling is disabled, always uses mllib implementation.
+//     * If using ml implementation, uses ml code to generate initial weights.
+//     */
+//    override def run(input: RDD[LabeledPoint]): LogisticRegressionModel = {
+//      run(input, generateInitialWeights(input), userSuppliedWeights = false)
+//    }
+//
+//    /**
+//     * Run Logistic Regression with the configured parameters on an input RDD
+//     * of LabeledPoint entries starting from the initial weights provided.
+//     *
+//     * If a known updater is used calls the ml implementation, to avoid
+//     * applying a regularization penalty to the intercept, otherwise
+//     * defaults to the mllib implementation. If more than two classes
+//     * or feature scaling is disabled, always uses mllib implementation.
+//     * Uses user provided weights.
+//     *
+//     * In the ml LogisticRegression implementation, the number of corrections
+//     * used in the LBFGS update can not be configured. So `optimizer.setNumCorrections()`
+//     * will have no effect if we fall into that route.
+//     */
+//    override def run(input: RDD[LabeledPoint], initialWeights: Vector): LogisticRegressionModel = {
+//      run(input, initialWeights, userSuppliedWeights = true)
+//    }
+//
+//    private def run(input: RDD[LabeledPoint], initialWeights: Vector, userSuppliedWeights: Boolean):
+//        LogisticRegressionModel = {
+//      // ml's Logistic regression only supports binary spark.classification currently.
+//      if (numOfLinearPredictor == 1) {
+//        def runWithMlLogisticRegression(elasticNetParam: Double) = {
+//          // Prepare the ml LogisticRegression based on our settings
+//          val lr = new org.apache.spark.ml.classification.LogisticRegression()
+//          lr.setRegParam(optimizer.getRegParam())
+//          lr.setElasticNetParam(elasticNetParam)
+//          lr.setStandardization(useFeatureScaling)
+//          if (userSuppliedWeights) {
+//            val uid = Identifiable.randomUID("logreg-static")
+//            lr.setInitialModel(new org.apache.spark.ml.classification.LogisticRegressionModel(
+//              uid, initialWeights.asML, 1.0))
+//          }
+//          lr.setFitIntercept(addIntercept)
+//          lr.setMaxIter(optimizer.getNumIterations())
+//          lr.setTol(optimizer.getConvergenceTol())
+//          // Convert our input into a DataFrame
+//          val spark = SparkSession.builder().sparkContext(input.context).getOrCreate()
+//          val df = spark.createDataFrame(input.map(_.asML))
+//          // Determine if we should cache the DF
+//          val handlePersistence = input.getStorageLevel == StorageLevel.NONE
+//          // Train our model
+//          val mlLogisticRegressionModel = lr.train(df, handlePersistence)
+//          // convert the model
+//          val weights = Vectors.dense(mlLogisticRegressionModel.coefficients.toArray)
+//          createModel(weights, mlLogisticRegressionModel.intercept)
+//        }
+//        optimizer.getUpdater() match {
+//          case x: SquaredL2Updater => runWithMlLogisticRegression(0.0)
+//          case x: L1Updater => runWithMlLogisticRegression(1.0)
+//          case _ => super.run(input, initialWeights)
+//        }
+//      } else {
+//        super.run(input, initialWeights)
+//      }
+//    }
+//  }

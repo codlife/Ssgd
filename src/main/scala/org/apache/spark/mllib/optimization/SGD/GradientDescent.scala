@@ -17,15 +17,11 @@ package org.apache.spark.mllib.optimization.SGD
  * limitations under the License.
  */
 
-
-
-
-
 import scala.collection.mutable.ArrayBuffer
 import breeze.linalg.{norm, DenseVector => BDV}
 import org.apache.spark.internal.Logging
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.mllib.util.{Gradient, Optimizer, Updater}
+import org.apache.spark.mllib.optimization.{Gradient, Optimizer, Updater}
 import org.apache.spark.rdd.RDD
 
 /**

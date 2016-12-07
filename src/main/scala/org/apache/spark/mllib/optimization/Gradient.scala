@@ -15,11 +15,11 @@
  * limitations under the License.
  */
 
-package org.apache.spark.mllib.util
+package org.apache.spark.mllib.optimization
 
-
-import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
 import org.apache.spark.mllib.linalg.BLAS.{axpy, dot, scal}
+import org.apache.spark.mllib.linalg.{DenseVector, Vector, Vectors}
+import org.apache.spark.mllib.util.MLUtils
 /**
  * :: DeveloperApi ::
  * Class used to compute the gradient for a loss function, given a single data point.
@@ -169,6 +169,7 @@ class LogisticGradient(numClasses: Int) extends Gradient {
       label: Double,
       weights: Vector,
       cumGradient: Vector): Double = {
+    println("this is myown")
     val dataSize = data.size
 
     // (weights.size / dataSize + 1) is number of classes
