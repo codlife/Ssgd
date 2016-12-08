@@ -164,12 +164,12 @@ class LogisticGradient(numClasses: Int) extends Gradient {
 
   def this() = this(2)
 
+
   override def compute(
       data: Vector,
       label: Double,
       weights: Vector,
       cumGradient: Vector): Double = {
-    println("this is myown")
     val dataSize = data.size
 
     // (weights.size / dataSize + 1) is number of classes

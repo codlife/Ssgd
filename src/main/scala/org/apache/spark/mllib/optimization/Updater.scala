@@ -56,7 +56,9 @@ abstract class Updater extends Serializable {
       stepSize: Double,
       iter: Int,
       regParam: Double): (Vector, Double)
+
 }
+
 
 /**
  * :: DeveloperApi ::
@@ -147,9 +149,9 @@ class SquaredL2Updater extends Updater {
     brzWeights :*= (1.0 - thisIterStepSize * regParam)
     brzAxpy(-thisIterStepSize, gradient.asBreeze, brzWeights)
     val norm = brzNorm(brzWeights, 2.0)
-    println("this is my update")
     (Vectors.fromBreeze(brzWeights), 0.5 * regParam * norm * norm)
 
   }
+
 }
 

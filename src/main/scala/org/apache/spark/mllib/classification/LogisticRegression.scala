@@ -21,8 +21,10 @@ import org.apache.spark.annotation.Since
 import org.apache.spark.mllib.classification.impl.GLMClassificationModel
 import org.apache.spark.mllib.linalg.BLAS.dot
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
-import org.apache.spark.mllib.optimization.{LogisticGradient, SquaredL2Updater}
+import org.apache.spark.mllib.optimization.Momentum.GradientDescentWithMomentum
+import org.apache.spark.mllib.optimization.{LogisticGradient, Optimizer, SquaredL2Updater}
 import org.apache.spark.mllib.optimization.SGD.GradientDescent
+import org.apache.spark.mllib.optimization.SVRG.GradientDescentWithSVRG
 import org.apache.spark.mllib.pmml.PMMLExportable
 import org.apache.spark.mllib.regression._
 import org.apache.spark.mllib.util.{DataValidators, Loader, Saveable}
@@ -204,42 +206,112 @@ object LogisticRegressionModel extends Loader[LogisticRegressionModel] {
  * Using [[LogisticRegressionWithLBFGS]] is recommended over this.
  */
 @Since("0.8.0")
-class LogisticRegressionWithSGD  (
-    private var stepSize: Double,
-    private var numIterations: Int,
-    private var regParam: Double,
-    private var miniBatchFraction: Double)
+class LogisticRegressionWithSGD (
+                                                 private var stepSize: Double,
+                                                 private var numIterations: Int,
+                                                 private var regParam: Double,
+                                                 private var miniBatchFraction: Double)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
-    private val gradient = new LogisticGradient()
-    private val updater = new SquaredL2Updater()
-    @Since("0.8.0")
-    override val optimizer = new GradientDescent(gradient, updater)
-      .setStepSize(stepSize)
-      .setNumIterations(numIterations)
-      .setRegParam(regParam)
-      .setMiniBatchFraction(miniBatchFraction)
-    override protected val validators = List(DataValidators.binaryLabelValidator)
+  private val gradient = new LogisticGradient()
+  private val updater = new SquaredL2Updater()
+  @Since("0.8.0")
+  override val optimizer = new GradientDescent(gradient, updater)
+    .setStepSize(stepSize)
+    .setNumIterations(numIterations)
+    .setRegParam(regParam)
+    .setMiniBatchFraction(miniBatchFraction)
+  override protected val validators = List(DataValidators.binaryLabelValidator)
 
-    /**
-     * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
-     * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
-     */
-    @Since("0.8.0")
-    @deprecated("Use ml.spark.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
-    def this() = this(1.0, 100, 0.01, 1.0)
+  /**
+    * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
+    * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
+    */
+  @Since("0.8.0")
+  def this() = this(1.0, 100, 0.01, 1.0)
 
-    override protected[mllib] def createModel(weights: Vector, intercept: Double) = {
-      new LogisticRegressionModel(weights, intercept)
-    }
+  override protected  def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
   }
+}
+/*
+  this is LogisticRegressionWithMomentum
+  you can use this: such as:
+  {{
+    val model = new LogisticRegressionWithSGDMomentum(1.0,100,0.01,1.0).run(input)
+  }}
+ */
+class LogisticRegressionWithSGDMomentum (
+                                  private var stepSize: Double,
+                                  private var numIterations: Int,
+                                  private var regParam: Double,
+                                  private var miniBatchFraction: Double)
+  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
+  private val gradient = new LogisticGradient()
+  private val updater = new SquaredL2Updater()
+  @Since("0.8.0")
+  override val optimizer = new GradientDescentWithMomentum(gradient, updater)
+    .setStepSize(stepSize)
+    .setNumIterations(numIterations)
+    .setRegParam(regParam)
+    .setMiniBatchFraction(miniBatchFraction)
+  override protected val validators = List(DataValidators.binaryLabelValidator)
+  /**
+    * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
+    * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
+    */
+  @Since("0.8.0")
+  def this() = this(1.0, 100, 0.01, 1.0)
+
+  override protected  def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
+
+/*
+  this is LogisticRegressionWithSGDSVRG
+  you can use this: such as:
+  {{
+    val model = new LogisticRegressionWithSGDSVRG(1.0,100,0.01,1.0).run(input)
+  }}
+  currrently: we just use local mean to reduce the bias, and we use gradient to aggregate not w
+  Note: currently a = b = 1/sqrt(t) t= iteration time
+ */
+class LogisticRegressionWithSGDSVRG (
+                                          private var stepSize: Double,
+                                          private var numIterations: Int,
+                                          private var regParam: Double,
+                                          private var miniBatchFraction: Double)
+  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
+
+  private val gradient = new LogisticGradient()
+  private val updater = new SquaredL2Updater()
+  @Since("0.8.0")
+  override val optimizer = new GradientDescentWithSVRG(gradient, updater)
+    .setStepSize(stepSize)
+    .setNumIterations(numIterations)
+    .setRegParam(regParam)
+    .setMiniBatchFraction(miniBatchFraction)
+  override protected val validators = List(DataValidators.binaryLabelValidator)
+  /**
+    * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
+    * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
+    */
+  @Since("0.8.0")
+  @deprecated("Use ml.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
+  def this() = this(1.0, 100, 0.01, 1.0)
+
+  override protected  def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
 /**
  * Top-level methods for calling Logistic Regression using Stochastic Gradient Descent.
  * NOTE: Labels used in Logistic Regression should be {0, 1}
  */
 @Since("0.8.0")
-@deprecated("Use ml.spark.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
+//@deprecated("Use ml.spark.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
 object LogisticRegressionWithSGD {
   // NOTE(shivaram): We use multiple train methods instead of default arguments to support
   // Java programs.

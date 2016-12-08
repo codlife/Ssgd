@@ -1,29 +1,15 @@
-package org.apache.spark.mllib.optimization.SVRG
+package org.apache.spark.mllib.optimization.Momentum
 
 /*
- * Licensed to the Apache Software Foundation (ASF) under one or more
- * contributor license agreements.  See the NOTICE file distributed with
- * this work for additional information regarding copyright ownership.
- * The ASF licenses this file to You under the Apache License, Version 2.0
- * (the "License"); you may not use this file except in compliance with
- * the License.  You may obtain a copy of the License at
- *
- *    http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+by wangjianfei15@otcaix.iscas.ac.cn
  */
 
-import breeze.linalg.{Vector => BV, DenseVector => BDV,axpy => brzAxpy,norm => brzNorm}
+import breeze.linalg.{norm, DenseVector => BDV}
 import org.apache.spark.internal.Logging
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.mllib.optimization.{Gradient, Optimizer, Updater}
+import org.apache.spark.mllib.optimization.{Gradient, Optimizer, SquaredL2Updater, Updater}
 import org.apache.spark.rdd.RDD
 
-import scala.math._
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -32,7 +18,7 @@ import scala.collection.mutable.ArrayBuffer
   * @param gradient Gradient function to be used.
  * @param updater Updater to be used to update weights after every iteration.
  */
-class GradientDescentWithSVRG(private var gradient: Gradient, private var updater: Updater)
+class GradientDescentWithMomentum(private var gradient: Gradient, private var updater: Updater)
   extends Optimizer with Logging {
 
   private var stepSize: Double = 1.0
@@ -132,7 +118,7 @@ class GradientDescentWithSVRG(private var gradient: Gradient, private var update
    */
 
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-    val (weights, _) = GradientDescentWithSVRG.runMiniBatchSGD(
+    val (weights, _) = GradientDescentWithMomentum.runMiniBatchSGD(
       data,
       gradient,
       updater,
@@ -152,7 +138,7 @@ class GradientDescentWithSVRG(private var gradient: Gradient, private var update
  * Top-level method to run gradient descent.
  */
 
-object GradientDescentWithSVRG extends Logging {
+object GradientDescentWithMomentum extends Logging {
   /**
    * Run stochastic gradient descent (SGD) in parallel using mini batches.
    * In each iteration, we sample a subset (fraction miniBatchFraction) of the total data
@@ -220,6 +206,7 @@ object GradientDescentWithSVRG extends Logging {
 
     // Initialize weights as a column vector
     var weights = Vectors.dense(initialWeights.toArray)
+
     val n = weights.size
 
     /**
@@ -233,72 +220,43 @@ object GradientDescentWithSVRG extends Logging {
     var i = 1
     while (!converged && i <= numIterations) {
       val bcWeights = data.context.broadcast(weights)
+      println("this is momentum")
+
       // Sample a subset (fraction miniBatchFraction) of the total data
       // compute and sum up the subgradients on this subset (this is one map-reduce)
-      println("this is SVRG")
-      val  (gradientSum, lossSum, miniBatchSize) = data.sample(false, miniBatchFraction, 42 + i)
-        .mapPartitions{
-          partition => {
-            val array = partition.toArray
-            val currentGradient = BDV.zeros[Double](n)
-            var loss = 0.0
-            var gradientSum = BDV.zeros[Double](n)
-            for(x <- array) {
-               gradient.compute(x._2, x._1, bcWeights.value, Vectors.fromBreeze(currentGradient))
-            }
-            currentGradient /= array.length.toDouble
-            var currentW = bcWeights.value
-            for(j<- array.indices) {
-              val index = (Math.random() * array.length).toInt
-              val tempGradient = BDV.zeros[Double](n)
-              gradient.compute(array(index)._2,array(index)._1, bcWeights.value, Vectors.fromBreeze(tempGradient))
-              val delta = tempGradient - currentGradient
-              val newGradient = BDV.zeros[Double](n)
-              loss += gradient.compute(array(index)._2, array(index)._1, currentW, Vectors.fromBreeze(newGradient))
-              val finalGradient = newGradient - delta
-              gradientSum += finalGradient
-              val brzWeights:BV[Double] = currentW.asBreeze.toDenseVector
-              val thisIterStepSize = stepSize / math.sqrt(i)
-              brzWeights :*= (1.0 - thisIterStepSize * regParam)
-              brzAxpy[Double,BV[Double],BV[Double]](-thisIterStepSize,finalGradient, brzWeights)
-//              val norm = brzNorm(brzWeights, 2.0)
-//              val regVal = 0.5 * regParam * norm * norm
-              currentW =  Vectors.fromBreeze(brzWeights)
-            }
-            var seq = Seq[(BDV[Double],Double,Int)]()
-            seq = seq :+ (gradientSum,loss,array.length)
-            seq.iterator
-          }
-        }.treeAggregate((BDV.zeros[Double](n), 0.0, 0L))(
+      val (gradientSum, lossSum, miniBatchSize) = data.sample(false, miniBatchFraction, 42 + i)
+        .treeAggregate((BDV.zeros[Double](n), 0.0, 0L))(
           seqOp = (c, v) => {
-            (c._1 + v._1 , c._2 + v._2, c._3 + v._3)
+            // c: (grad, loss, count), v: (label, features)
+            val l = gradient.compute(v._2, v._1, bcWeights.value, Vectors.fromBreeze(c._1))
+            (c._1, c._2 + l, c._3 + 1)
           },
-        combOp = (c1, c2) => {
-          (c1._1 + c2._1 , c1._2 + c2._2, c1._3 + c2._3)
-        }
-      )
-
-//      val  = data.sample(false, miniBatchFraction, 42 + i)
-//        .treeAggregate((BDV.zeros[Double](n), 0.0, 0L))(
-//          seqOp = (c, v) => {
-//            // c: (grad, loss, count), v: (label, features)
-//            val l = gradient.compute(v._2, v._1, bcWeights.value, Vectors.fromBreeze(c._1))
-//            (c._1, c._2 + l, c._3 + 1)
-//          },
-//          combOp = (c1, c2) => {
-//            // c: (grad, loss, count)
-//            (c1._1 += c2._1, c1._2 + c2._2, c1._3 + c2._3)
-//          })
+          combOp = (c1, c2) => {
+            // c: (grad, loss, count)
+            (c1._1 += c2._1, c1._2 + c2._2, c1._3 + c2._3)
+          })
 
       if (miniBatchSize > 0) {
         /**
          * lossSum is computed using the weights from the previous iteration
          * and regVal is the regularization value computed in the previous iteration as well.
          */
+        /*
+         * note: currently a=b= 1/sqrt(t), this can be different
+         */
         stochasticLossHistory += lossSum / miniBatchSize + regVal
-        val update = updater.compute(
-          weights, Vectors.fromBreeze(gradientSum / miniBatchSize.toDouble),
-          stepSize, i, regParam)
+        var update:(Vector,Double) = (Vectors.zeros(1),1.0)
+        if(currentWeights.isDefined && previousWeights.isEmpty) {
+           update = updater.compute(weights, Vectors.fromBreeze(gradientSum / miniBatchSize.toDouble - currentWeights.get.asBreeze),
+            stepSize, i, regParam)
+        } else if(currentWeights.isDefined && previousWeights.isDefined) {
+           update = updater.compute(weights, Vectors.fromBreeze(gradientSum / miniBatchSize.toDouble - (currentWeights.get.asBreeze - previousWeights.get.asBreeze)),
+            stepSize, i, regParam)
+        } else {
+          update = updater.compute(weights, Vectors.fromBreeze(gradientSum / miniBatchSize.toDouble),
+            stepSize, i, regParam)
+        }
+
         weights = update._1
         regVal = update._2
 
@@ -333,7 +291,7 @@ object GradientDescentWithSVRG extends Logging {
       regParam: Double,
       miniBatchFraction: Double,
       initialWeights: Vector): (Vector, Array[Double]) =
-    GradientDescentWithSVRG.runMiniBatchSGD(data, gradient, updater, stepSize, numIterations,
+    GradientDescentWithMomentum.runMiniBatchSGD(data, gradient, updater, stepSize, numIterations,
                                     regParam, miniBatchFraction, initialWeights, 0.001)
 
 
@@ -346,9 +304,9 @@ object GradientDescentWithSVRG extends Logging {
     val currentBDV = currentWeights.asBreeze.toDenseVector
 
     // This represents the difference of updated weights in the iteration.
-    val solutionVecDiff: Double = brzNorm(previousBDV - currentBDV)
+    val solutionVecDiff: Double = norm(previousBDV - currentBDV)
 
-    solutionVecDiff < convergenceTol * Math.max(brzNorm(currentBDV), 1.0)
+    solutionVecDiff < convergenceTol * Math.max(norm(currentBDV), 1.0)
   }
 
 }
