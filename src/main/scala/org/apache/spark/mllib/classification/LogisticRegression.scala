@@ -25,6 +25,7 @@ import org.apache.spark.mllib.optimization.Momentum.GradientDescentWithMomentum
 import org.apache.spark.mllib.optimization.{LogisticGradient, Optimizer, SquaredL2Updater}
 import org.apache.spark.mllib.optimization.SGD.GradientDescent
 import org.apache.spark.mllib.optimization.SVRG.GradientDescentWithSVRG
+import org.apache.spark.mllib.optimization.adagram.GradientDescentWithAdagram
 import org.apache.spark.mllib.pmml.PMMLExportable
 import org.apache.spark.mllib.regression._
 import org.apache.spark.mllib.util.{DataValidators, Loader, Saveable}
@@ -268,6 +269,39 @@ class LogisticRegressionWithSGDMomentum (
     new LogisticRegressionModel(weights, intercept)
   }
 }
+
+
+// this is LogisticRegressionWithAdagram
+class LogisticRegressionWithAdagram  (
+                                   private var stepSize: Double,
+                                   private var numIterations: Int,
+                                   private var regParam: Double,
+                                   private var miniBatchFraction: Double)
+  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
+
+  private val gradient = new LogisticGradient()
+  private val updater = new SquaredL2Updater()
+  @Since("0.8.0")
+  override val optimizer = new GradientDescentWithAdagram(gradient, updater)
+    .setStepSize(stepSize)
+    .setNumIterations(numIterations)
+    .setRegParam(regParam)
+    .setMiniBatchFraction(miniBatchFraction)
+  override protected val validators = List(DataValidators.binaryLabelValidator)
+
+  /**
+    * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
+    * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
+    */
+  @Since("0.8.0")
+  @deprecated("Use ml.spark.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
+  def this() = this(1.0, 100, 0.01, 1.0)
+
+  override protected[mllib] def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
+
 
 /*
   this is LogisticRegressionWithSGDSVRG
