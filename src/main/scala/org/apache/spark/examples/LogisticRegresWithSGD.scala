@@ -1,7 +1,7 @@
 package org.apache.spark.examples
 
 
-import org.apache.spark.mllib.classification.{LogisticRegressionWithAdagram, LogisticRegressionWithSGD, LogisticRegressionWithSGDMomentum, LogisticRegressionWithSGDSVRG2}
+import org.apache.spark.mllib.classification.{LogisticRegressionWithSgd, LogisticRegressionWithSGDMomentum, LogisticRegressionWithSGDSVRG2}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
@@ -77,7 +77,7 @@ object LogisticRegresWithSGD {
 
    } else if(algorithm == "sgd"){
      println("sgd is running")
-     val sgd = new LogisticRegressionWithSGD(1.0, iteration, 1, sampleFraction.toDouble)
+     val sgd = new LogisticRegressionWithSgd(1.0, iteration, 1, sampleFraction.toDouble)
      val model = sgd.run(training)
      model.clearThreshold()
      val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
@@ -131,28 +131,28 @@ object LogisticRegresWithSGD {
 //    val sgd = new LogisticRegressionWithSGD(1.0, 50, 0.01, 1.0)
     //   val sgd = new LogisticRegressionWithSGDMomentum(1.0, 50, 0.01, 1.0)
 
-         val sgdwithadagram = new LogisticRegressionWithAdagram(1.0, 50, 0.01, 1.0)
-
-//    val sgd = new LogisticRegressionWithSGDSVRG(1.0, 50, 0.01, 1.0)
-
-    // val model = sgd.run(training)
-    val model = sgdwithadagram.run(training)
-
-    model.clearThreshold()
-    val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
-      val prediction = model.predict(features)
-      (label, prediction)
-    }
-
-    val metric = new BinaryClassificationMetrics(predictionAndLabels)
-    val auROC = metric.areaUnderROC()
-    println("AREA under ROC = " + auROC)
-
-
-    println(data.count())
-    val end = System.nanoTime()
-
-    println("this is time" + (end - start) / 1000000)
+//         val sgdwithadagram = new LogisticRegressionWithAdagram(1.0, 50, 0.01, 1.0)
+//
+////    val sgd = new LogisticRegressionWithSGDSVRG(1.0, 50, 0.01, 1.0)
+//
+//    // val model = sgd.run(training)
+//    val model = sgdwithadagram.run(training)
+//
+//    model.clearThreshold()
+//    val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
+//      val prediction = model.predict(features)
+//      (label, prediction)
+//    }
+//
+//    val metric = new BinaryClassificationMetrics(predictionAndLabels)
+//    val auROC = metric.areaUnderROC()
+//    println("AREA under ROC = " + auROC)
+//
+//
+//    println(data.count())
+//    val end = System.nanoTime()
+//
+//    println("this is time" + (end - start) / 1000000)
 
 
 

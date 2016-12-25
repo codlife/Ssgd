@@ -1,6 +1,6 @@
 package org.apache.spark.examples
 
-import org.apache.spark.mllib.classification.{LogisticRegressionWithSGD, LogisticRegressionWithSGDMomentum, LogisticRegressionWithSGDSVRG2}
+import org.apache.spark.mllib.classification.{LogisticRegressionWithSGDMomentum, LogisticRegressionWithSGDSVRG2, LogisticRegressionWithSgd}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
@@ -69,7 +69,7 @@ object LocalLogisticRegresWithSGD {
 
     } else if(algorithm == "sgd"){
       println("sgd is running")
-      val sgd = new LogisticRegressionWithSGD(1.0, iteration, 1, sampleFraction.toDouble)
+      val sgd = new LogisticRegressionWithSgd(1.0, iteration, 1, sampleFraction.toDouble)
       val model = sgd.run(training)
       model.clearThreshold()
       val predictionAndLabels = test.map { case LabeledPoint(label, features) =>

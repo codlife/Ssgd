@@ -33,6 +33,7 @@ import org.apache.spark.rdd.RDD
 class GradientDescent(private var gradient: Gradient, private var updater: Updater)
   extends Optimizer with Logging {
 
+
   private var stepSize: Double = 1.0
   private var numIterations: Int = 100
   private var regParam: Double = 0.0

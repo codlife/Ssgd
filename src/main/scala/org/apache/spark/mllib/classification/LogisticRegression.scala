@@ -207,7 +207,7 @@ object LogisticRegressionModel extends Loader[LogisticRegressionModel] {
   * Using [[LogisticRegressionWithLBFGS]] is recommended over this.
   */
 @Since("0.8.0")
-class LogisticRegressionWithSGD (
+class LogisticRegressionWithSgd (
                                   private var stepSize: Double,
                                   private var numIterations: Int,
                                   private var regParam: Double,
@@ -375,7 +375,7 @@ class LogisticRegressionWithSGDSVRG2 (
   */
 @Since("0.8.0")
 //@deprecated("Use ml.spark.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
-object LogisticRegressionWithSGD {
+object LogisticRegressionWithSgd {
   // NOTE(shivaram): We use multiple train methods instead of default arguments to support
   // Java programs.
 
@@ -400,7 +400,7 @@ object LogisticRegressionWithSGD {
              stepSize: Double,
              miniBatchFraction: Double,
              initialWeights: Vector): LogisticRegressionModel = {
-    new LogisticRegressionWithSGD(stepSize, numIterations, 0.0, miniBatchFraction)
+    new LogisticRegressionWithSgd(stepSize, numIterations, 0.0, miniBatchFraction)
       .run(input, initialWeights)
   }
 
