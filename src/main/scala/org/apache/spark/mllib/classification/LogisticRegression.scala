@@ -22,10 +22,10 @@ import org.apache.spark.mllib.classification.impl.GLMClassificationModel
 import org.apache.spark.mllib.linalg.BLAS.dot
 import org.apache.spark.mllib.linalg.{DenseVector, Vector}
 import org.apache.spark.mllib.optimization.Momentum.GradientDescentWithMomentum
-import org.apache.spark.mllib.optimization.{LogisticGradient, Optimizer, SquaredL2Updater}
+import org.apache.spark.mllib.optimization.{AdaGradUpdater, LogisticGradient, Optimizer, SquaredL2Updater}
 import org.apache.spark.mllib.optimization.SGD.GradientDescent
 import org.apache.spark.mllib.optimization.SVRG.{GradientDescentWithSVRG, GradientDescentWithSVRG2}
-import org.apache.spark.mllib.optimization.adagram.GradientDescentWithAdagram
+import org.apache.spark.mllib.optimization.adagram.GradientDescentWithAdagrad
 import org.apache.spark.mllib.pmml.PMMLExportable
 import org.apache.spark.mllib.regression._
 import org.apache.spark.mllib.util.{DataValidators, Loader, Saveable}
@@ -271,8 +271,8 @@ class LogisticRegressionWithSGDMomentum (
 }
 
 
-// this is LogisticRegressionWithAdagram
-class LogisticRegressionWithAdagram  (
+// this is LogisticRegressionWithAdagrad
+class LogisticRegressionWithAdagrad  (
                                        private var stepSize: Double,
                                        private var numIterations: Int,
                                        private var regParam: Double,
@@ -280,9 +280,9 @@ class LogisticRegressionWithAdagram  (
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
   private val gradient = new LogisticGradient()
-  private val updater = new SquaredL2Updater()
+  private val updater = new AdaGradUpdater()
   @Since("0.8.0")
-  override val optimizer = new GradientDescentWithAdagram(gradient, updater)
+  override val optimizer = new GradientDescentWithAdagrad(gradient, updater)
     .setStepSize(stepSize)
     .setNumIterations(numIterations)
     .setRegParam(regParam)

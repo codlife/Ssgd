@@ -25,8 +25,9 @@ import scala.collection.mutable.ArrayBuffer
 import breeze.linalg.{norm, DenseVector => BDV}
 import org.apache.spark.internal.Logging
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
-import org.apache.spark.mllib.optimization.{Gradient, Optimizer, Updater, adagram}
+import org.apache.spark.mllib.optimization._
 import org.apache.spark.rdd.RDD
+
 import scala.math._
 /**
   * Class used to solve an spark.optimization problem using Gradient Descent.
@@ -34,14 +35,14 @@ import scala.math._
   * @param gradient Gradient function to be used.
   * @param updater Updater to be used to update weights after every iteration.
   */
-class GradientDescentWithAdagram(private var gradient: Gradient, private var updater: Updater)
+class GradientDescentWithAdagrad(private var gradient: Gradient, private var updater: AdaGradUpdater)
   extends Optimizer with Logging {
 
   private var stepSize: Double = 1.0
   private var numIterations: Int = 100
   private var regParam: Double = 0.0
   private var miniBatchFraction: Double = 1.0
-  private var convergenceTol: Double = 0.001
+  private var convergenceTol: Double = 0.0000001
 
   /**
     * Set the initial step size of SGD for the first step. Default 1.0.
@@ -120,7 +121,7 @@ class GradientDescentWithAdagram(private var gradient: Gradient, private var upd
     * The updater is responsible to perform the update from the regularization term as well,
     * and therefore determines what kind or regularization is used, if any.
     */
-  def setUpdater(updater: Updater): this.type = {
+  def setUpdater(updater: AdaGradUpdater): this.type = {
     this.updater = updater
     this
   }
@@ -134,7 +135,7 @@ class GradientDescentWithAdagram(private var gradient: Gradient, private var upd
     */
 
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-    val (weights, _) = GradientDescentWithAdagram.runMiniBatchSGD(
+    val (weights, _) = GradientDescentWithAdagrad.runMiniBatchSGD(
       data,
       gradient,
       updater,
@@ -154,7 +155,7 @@ class GradientDescentWithAdagram(private var gradient: Gradient, private var upd
   * Top-level method to run gradient descent.
   */
 
-object GradientDescentWithAdagram extends Logging {
+object GradientDescentWithAdagrad extends Logging {
   /**
     * Run stochastic gradient descent (SGD) in parallel using mini batches.
     * In each iteration, we sample a subset (fraction miniBatchFraction) of the total data
@@ -183,7 +184,7 @@ object GradientDescentWithAdagram extends Logging {
   def runMiniBatchSGD(
                        data: RDD[(Double, Vector)],
                        gradient: Gradient,
-                       updater: Updater,
+                       updater: AdaGradUpdater,
                        stepSize: Double,
                        numIterations: Int,
                        regParam: Double,
@@ -258,31 +259,22 @@ object GradientDescentWithAdagram extends Logging {
 
 
       //Adagrad: store historical gradient sum of each column
-      for (k <- 0 to (n-1))
-      {
+      for (k <- 0 until n) {
         gradientHistory(k) += (gradientSum(k)/ miniBatchSize)*(gradientSum(k)/ miniBatchSize)
-        val t = gradientHistory(k) + (1e-8)
+        val t = gradientHistory(k) + 1e-8
         eta(k) = 1.0/sqrt(t)
       }
-
-
       if (miniBatchSize > 0) {
         /**
           * lossSum is computed using the weights from the previous iteration
           * and regVal is the regularization value computed in the previous iteration as well.
           */
         stochasticLossHistory += lossSum / miniBatchSize + regVal
-
-
         //Adagrad: transmit the learning rate with G
-       val ada = new adagram
-       val update = ada.compute(weights, Vectors.fromBreeze(gradientSum / miniBatchSize.toDouble),
+       val update = updater.compute2(weights, Vectors.fromBreeze(gradientSum / miniBatchSize.toDouble),
                                                   stepSize, i, regParam, eta)
-
         weights = update._1
         regVal = update._2
-        println(weights)
-
         previousWeights = currentWeights
         currentWeights = Some(weights)
         if (previousWeights != None && currentWeights != None) {
@@ -310,13 +302,13 @@ object GradientDescentWithAdagram extends Logging {
   def runMiniBatchSGD(
                        data: RDD[(Double, Vector)],
                        gradient: Gradient,
-                       updater: Updater,
+                       updater: AdaGradUpdater,
                        stepSize: Double,
                        numIterations: Int,
                        regParam: Double,
                        miniBatchFraction: Double,
                        initialWeights: Vector): (Vector, Array[Double]) =
-  GradientDescentWithAdagram.runMiniBatchSGD(data, gradient, updater, stepSize, numIterations,
+  GradientDescentWithAdagrad.runMiniBatchSGD(data, gradient, updater, stepSize, numIterations,
     regParam, miniBatchFraction, initialWeights, 0.001)
 
 
