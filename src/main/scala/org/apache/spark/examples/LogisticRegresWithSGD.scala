@@ -18,12 +18,13 @@ object LogisticRegresWithSGD {
     val conf = new SparkConf().setAppName("ssgd")
 
     val sc = new SparkContext(conf)
-    val iteration = args(args.length -6).toInt
-    val path = args(args.length -5)
-    val number = args(args.length -4).toInt
-    val algorithm = args(args.length -3)
-    val sampleForSVRG = args(args.length -2)
-    val sampleFraction = args(args.length -1)
+    val iteration = args(args.length -7).toInt
+    val path = args(args.length -6)
+    val number = args(args.length -5).toInt
+    val algorithm = args(args.length -4)
+    val sampleForSVRG = args(args.length -3)
+    val sampleFraction = args(args.length -2)
+    val convergeTo = args(args.length -1)
 
     // $example on$
     // Load training data in LIBSVM format.
@@ -43,10 +44,10 @@ object LogisticRegresWithSGD {
     val training = splits(0).cache()
     val test = splits(1)
 
-    var start = System.nanoTime()
+    val start = System.nanoTime()
    if(algorithm == "momentum") {
      println("momentum is running")
-     val sgd = new LogisticRegressionWithSGDMomentum(1.0, iteration, 1, sampleFraction.toDouble)
+     val sgd = new LogisticRegressionWithSGDMomentum(1.0, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
      val model = sgd.run(training)
      model.clearThreshold()
      val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
@@ -68,7 +69,7 @@ object LogisticRegresWithSGD {
 
 
      println("sgd is running")
-     val sgd = new LogisticRegressionWithSgd(1.0, iteration, 1, sampleFraction.toDouble)
+     val sgd = new LogisticRegressionWithSgd(1.0, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
      val model = sgd.run(training)
      model.clearThreshold()
      val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
@@ -86,7 +87,7 @@ object LogisticRegresWithSGD {
 
 
      println("svrg is running")
-     val sgd = new LogisticRegressionWithSGDSVRG2(1.0, iteration, 1, sampleFraction.toDouble,sampleForSVRG.toDouble)
+     val sgd = new LogisticRegressionWithSGDSVRG2(1.0, iteration, 1, sampleFraction.toDouble,sampleForSVRG.toDouble,convergeTo.toDouble)
      val model = sgd.run(training)
      model.clearThreshold()
      val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
@@ -105,7 +106,7 @@ object LogisticRegresWithSGD {
 
 
      println("adagrad is running")
-     val sgd = new LogisticRegressionWithAdagrad(1.0, iteration, 1, sampleFraction.toDouble)
+     val sgd = new LogisticRegressionWithAdagrad(1.0, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
      val model = sgd.run(training)
      model.clearThreshold()
      val predictionAndLabels = test.map { case LabeledPoint(label, features) =>

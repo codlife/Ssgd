@@ -42,7 +42,7 @@ class GradientDescentWithAdagrad(private var gradient: Gradient, private var upd
   private var numIterations: Int = 100
   private var regParam: Double = 0.0
   private var miniBatchFraction: Double = 1.0
-  private var convergenceTol: Double = 0.0000001
+  private var convergenceTol: Double = 0.001
 
   /**
     * Set the initial step size of SGD for the first step. Default 1.0.
@@ -235,12 +235,13 @@ object GradientDescentWithAdagrad extends Logging {
     var converged = false // indicates whether converged based on convergenceTol
     var i = 1
     //!converged || i <= numIterations
+    //Adagram: define of G
+    val eta = BDV.zeros[Double](n)
+    val gradientHistory = BDV.zeros[Double](n)
     while (!converged && i <= numIterations) {
       val bcWeights = data.context.broadcast(weights)
 
-      //Adagram: define of G
-      val gradientHistory = BDV.zeros[Double](n)
-      val eta = BDV.zeros[Double](n)
+
 
 
       // Sample a subset (fraction miniBatchFraction) of the total data
@@ -256,15 +257,23 @@ object GradientDescentWithAdagrad extends Logging {
             // c: (grad, loss, count)
             (c1._1 += c2._1, c1._2 + c2._2, c1._3 + c2._3)
           })
-
-
-      //Adagrad: store historical gradient sum of each column
-      for (k <- 0 until n) {
-        gradientHistory(k) += (gradientSum(k)/ miniBatchSize)*(gradientSum(k)/ miniBatchSize)
-        val t = gradientHistory(k) + 1e-8
-        eta(k) = 1.0/sqrt(t)
-      }
       if (miniBatchSize > 0) {
+
+        //Adagrad: store historical gradient sum of each column
+        //      print("this is gradient" + gradientSum )
+        for (k <- 0 until n) {
+          val temp = gradientSum(k) / miniBatchSize
+          gradientHistory(k) +=  temp * temp
+          if(k<10) {
+            println("this is history" + gradientHistory(k))
+            println(temp)
+            println(gradientHistory(k))
+          }
+
+          //        print("this is eta"+gradientHistory(k))
+          eta(k) = 1.0/sqrt(gradientHistory(k) + 1e-8)
+
+        }
         /**
           * lossSum is computed using the weights from the previous iteration
           * and regVal is the regularization value computed in the previous iteration as well.
