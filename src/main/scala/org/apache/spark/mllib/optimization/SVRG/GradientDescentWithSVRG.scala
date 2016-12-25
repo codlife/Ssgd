@@ -60,7 +60,6 @@ class GradientDescentWithSVRG(private var gradient: Gradient, private var update
     require(fraction > 0 && fraction <= 1.0,
       s"Fraction for mini-batch SGD must be in range (0, 1] but got ${fraction}")
     this.miniBatchFraction = fraction
-    println("test minibatch" + this.miniBatchFraction +":" + fraction)
     this
   }
 
@@ -253,7 +252,6 @@ object GradientDescentWithSVRG extends Logging {
             }
             currentGradient /= array.length.toDouble
             var currentW = bcWeights.value
-
             for(j<- array.indices) {
               val index = (Math.random() * array.length).toInt
               val tempGradient = BDV.zeros[Double](n)
@@ -330,6 +328,7 @@ object GradientDescentWithSVRG extends Logging {
     val endtime = System.nanoTime()
     println("time using" +  (endtime - starttime)/1000000)
     logWarning("time using" +  (endtime - starttime)/1000000)
+
     (weights, stochasticLossHistory.toArray)
 
   }

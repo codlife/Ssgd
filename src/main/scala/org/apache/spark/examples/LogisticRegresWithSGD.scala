@@ -1,12 +1,8 @@
 package org.apache.spark.examples
 
 
-import org.apache.spark.mllib.classification.{LogisticRegressionWithSGDMomentum, LogisticRegressionWithSGDSVRG, LogisticRegressionWithSGDSVRG2, LogisticRegressionWithSgd}
-
-import org.apache.spark.mllib.classification.{LogisticRegressionWithAdagram, LogisticRegressionWithSGD, LogisticRegressionWithSGDMomentum, LogisticRegressionWithSGDSVRG}
+import org.apache.spark.mllib.classification.{LogisticRegressionWithAdagram, LogisticRegressionWithSGD, LogisticRegressionWithSGDMomentum, LogisticRegressionWithSGDSVRG2}
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
-import org.apache.spark.mllib.optimization.{LogisticGradient, SquaredL2Updater}
-import org.apache.spark.mllib.optimization.SGD.GradientDescent
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
 import org.apache.spark.{SparkConf, SparkContext}
@@ -18,6 +14,7 @@ object LogisticRegresWithSGD {
 
   def main(args: Array[String]): Unit = {
 
+
     val conf = new SparkConf().setAppName("LogisticRegressionWithLBFGSExample")
 
     val sc = new SparkContext(conf)
@@ -27,6 +24,7 @@ object LogisticRegresWithSGD {
     val algorithm = args(args.length -3)
     val sampleForSVRG = args(args.length -2)
     val sampleFraction = args(args.length -1)
+
     // $example on$
     // Load training data in LIBSVM format.
     //    val data = MLUtils.loadLibSVMFile(sc, "/usr/data/ccf_data/regression/trainR10_libsvm.csv")
@@ -79,7 +77,7 @@ object LogisticRegresWithSGD {
 
    } else if(algorithm == "sgd"){
      println("sgd is running")
-     val sgd = new LogisticRegressionWithSgd(1.0, iteration, 1, sampleFraction.toDouble)
+     val sgd = new LogisticRegressionWithSGD(1.0, iteration, 1, sampleFraction.toDouble)
      val model = sgd.run(training)
      model.clearThreshold()
      val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
@@ -130,6 +128,31 @@ object LogisticRegresWithSGD {
    }
 //    val sgd = new LogisticRegressionWithSGDSVRG(1.0, 1, 1, 1)
 
+//    val sgd = new LogisticRegressionWithSGD(1.0, 50, 0.01, 1.0)
+    //   val sgd = new LogisticRegressionWithSGDMomentum(1.0, 50, 0.01, 1.0)
+
+         val sgdwithadagram = new LogisticRegressionWithAdagram(1.0, 50, 0.01, 1.0)
+
+//    val sgd = new LogisticRegressionWithSGDSVRG(1.0, 50, 0.01, 1.0)
+
+    // val model = sgd.run(training)
+    val model = sgdwithadagram.run(training)
+
+    model.clearThreshold()
+    val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
+      val prediction = model.predict(features)
+      (label, prediction)
+    }
+
+    val metric = new BinaryClassificationMetrics(predictionAndLabels)
+    val auROC = metric.areaUnderROC()
+    println("AREA under ROC = " + auROC)
+
+
+    println(data.count())
+    val end = System.nanoTime()
+
+    println("this is time" + (end - start) / 1000000)
 
 
 

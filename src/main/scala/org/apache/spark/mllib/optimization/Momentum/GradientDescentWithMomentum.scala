@@ -4,7 +4,7 @@ package org.apache.spark.mllib.optimization.Momentum
 by wangjianfei15@otcaix.iscas.ac.cn
  */
 
-import breeze.linalg.{norm, DenseVector => BDV}
+import breeze.linalg.{Vector => BV, DenseVector => BDV,axpy => brzAxpy,norm => brzNorm}
 import org.apache.spark.internal.Logging
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.mllib.optimization.{Gradient, Optimizer, SquaredL2Updater, Updater}
@@ -178,7 +178,6 @@ object GradientDescentWithMomentum extends Logging {
 
     val starttime = System.nanoTime()
     println("this is mini" + miniBatchFraction)
-
     // convergenceTol should be set with non minibatch settings
     if (miniBatchFraction < 1.0 && convergenceTol > 0.0) {
       logWarning("Testing against a convergenceTol when using miniBatchFraction " +
@@ -222,16 +221,13 @@ object GradientDescentWithMomentum extends Logging {
 
     var converged = false // indicates whether converged based on convergenceTol
     var i = 1
-    var ee = System.nanoTime()
-    println("time 1 " + (ee - starttime)/1000000)
+
     while (!converged && i <= numIterations) {
       val bcWeights = data.context.broadcast(weights)
       println("this is momentum")
-      println("numIterations" + numIterations)
 
       // Sample a subset (fraction miniBatchFraction) of the total data
       // compute and sum up the subgradients on this subset (this is one map-reduce)
-      val ss = System.nanoTime()
       val (gradientSum, lossSum, miniBatchSize) = data.sample(false, miniBatchFraction, 42 + i)
         .treeAggregate((BDV.zeros[Double](n), 0.0, 0L))(
           seqOp = (c, v) => {
@@ -244,9 +240,6 @@ object GradientDescentWithMomentum extends Logging {
             (c1._1 += c2._1, c1._2 + c2._2, c1._3 + c2._3)
           })
 
-      ee = System.nanoTime()
-      println("compute time" + (ee - ss)/1000000)
-      logWarning("compute time" + (ee -ss)/1000000)
       if (miniBatchSize > 0) {
         /**
          * lossSum is computed using the weights from the previous iteration
@@ -284,7 +277,6 @@ object GradientDescentWithMomentum extends Logging {
       i += 1
     }
     val ee2 = System.nanoTime()
-    println("time 2 " + (ee2 - ee)/ 1000000)
 
 
     logInfo("spark.optimization.SGD.GradientDescent.runMiniBatchSGD finished. Last 10 stochastic losses %s".format(
@@ -292,6 +284,10 @@ object GradientDescentWithMomentum extends Logging {
     val endtime = System.nanoTime()
     println("time using" + (endtime - starttime)/1000000)
     logWarning("time using" + (endtime - starttime)/1000000)
+
+    logInfo("spark.optimization.SGD.GradientDescent.runMiniBatchSGD finished. Last 10 stochastic losses %s".format(
+      stochasticLossHistory.takeRight(10).mkString(", ")))
+
     (weights, stochasticLossHistory.toArray)
 
   }
@@ -311,21 +307,18 @@ object GradientDescentWithMomentum extends Logging {
     GradientDescentWithMomentum.runMiniBatchSGD(data, gradient, updater, stepSize, numIterations,
                                     regParam, miniBatchFraction, initialWeights, 0.00001)
 
+    private def isConverged(
+                             previousWeights: Vector,
+                             currentWeights: Vector,
+                             convergenceTol: Double): Boolean = {
+      // To compare with convergence tolerance.
+      val previousBDV = previousWeights.asBreeze.toDenseVector
+      val currentBDV = currentWeights.asBreeze.toDenseVector
 
-  private def isConverged(
-      previousWeights: Vector,
-      currentWeights: Vector,
-      convergenceTol: Double): Boolean = {
-    // To compare with convergence tolerance.
-    val previousBDV = previousWeights.asBreeze.toDenseVector
-    val currentBDV = currentWeights.asBreeze.toDenseVector
-
-    // This represents the difference of updated weights in the iteration.
-    val solutionVecDiff: Double = norm(previousBDV - currentBDV)
-
-     println(solutionVecDiff / Math.max(norm(currentBDV),1.0))
-    solutionVecDiff < convergenceTol * Math.max(norm(currentBDV), 1.0)
-
-  }
+      // This represents the difference of updated weights in the iteration.
+      val solutionVecDiff: Double = brzNorm(previousBDV - currentBDV)
+      println(solutionVecDiff / Math.max(brzNorm(currentBDV),1.0))
+      solutionVecDiff < convergenceTol * Math.max(brzNorm(currentBDV), 1.0)
+    }
 
 }

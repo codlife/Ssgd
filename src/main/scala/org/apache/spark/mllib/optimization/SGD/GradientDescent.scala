@@ -57,7 +57,6 @@ class GradientDescent(private var gradient: Gradient, private var updater: Updat
   def setMiniBatchFraction(fraction: Double): this.type = {
     require(fraction > 0 && fraction <= 1.0,
       s"Fraction for mini-batch SGD must be in range (0, 1] but got ${fraction}")
-    println("-----------------------"+fraction)
     this.miniBatchFraction = fraction
     this
   }
@@ -279,6 +278,9 @@ object GradientDescent extends Logging {
     logWarning("time using" + (endtime - starttime)/1000000)
     logInfo("time using" + (endtime - starttime)/1000000)
     logInfo("iteration" + i)
+
+    logInfo("spark.optimization.SGD.GradientDescent.runMiniBatchSGD finished. Last 10 stochastic losses %s".format(
+      stochasticLossHistory.takeRight(10).mkString(", ")))
     (weights, stochasticLossHistory.toArray)
 
   }
@@ -311,6 +313,7 @@ object GradientDescent extends Logging {
     // This represents the difference of updated weights in the iteration.
     val solutionVecDiff: Double = norm(previousBDV - currentBDV)
     println(solutionVecDiff / Math.max(norm(currentBDV),1.0))
+
     solutionVecDiff < convergenceTol * Math.max(norm(currentBDV), 1.0)
   }
 

@@ -25,7 +25,6 @@ import org.apache.spark.mllib.optimization.Momentum.GradientDescentWithMomentum
 import org.apache.spark.mllib.optimization.{LogisticGradient, Optimizer, SquaredL2Updater}
 import org.apache.spark.mllib.optimization.SGD.GradientDescent
 import org.apache.spark.mllib.optimization.SVRG.{GradientDescentWithSVRG, GradientDescentWithSVRG2}
-import org.apache.spark.mllib.optimization.SVRG.GradientDescentWithSVRG
 import org.apache.spark.mllib.optimization.adagram.GradientDescentWithAdagram
 import org.apache.spark.mllib.pmml.PMMLExportable
 import org.apache.spark.mllib.regression._
@@ -34,142 +33,142 @@ import org.apache.spark.rdd.RDD
 
 
 /**
- * Classification model trained using Multinomial/Binary Logistic Regression.
- *
- * @param weights Weights computed for every feature.
- * @param intercept Intercept computed for this model. (Only used in Binary Logistic Regression.
- *                  In Multinomial Logistic Regression, the intercepts will not be a single value,
- *                  so the intercepts will be part of the weights.)
- * @param numFeatures the dimension of the features.
- * @param numClasses the number of possible outcomes for k classes spark.classification problem in
- *                   Multinomial Logistic Regression. By default, it is binary logistic regression
- *                   so numClasses will be set to 2.
- */
+  * Classification model trained using Multinomial/Binary Logistic Regression.
+  *
+  * @param weights Weights computed for every feature.
+  * @param intercept Intercept computed for this model. (Only used in Binary Logistic Regression.
+  *                  In Multinomial Logistic Regression, the intercepts will not be a single value,
+  *                  so the intercepts will be part of the weights.)
+  * @param numFeatures the dimension of the features.
+  * @param numClasses the number of possible outcomes for k classes spark.classification problem in
+  *                   Multinomial Logistic Regression. By default, it is binary logistic regression
+  *                   so numClasses will be set to 2.
+  */
 @Since("0.8.0")
 class LogisticRegressionModel @Since("1.3.0")(
-    @Since("1.0.0") override val weights: Vector,
-    @Since("1.0.0") override val intercept: Double,
-    @Since("1.3.0") val numFeatures: Int,
-    @Since("1.3.0") val numClasses: Int)
+                                               @Since("1.0.0") override val weights: Vector,
+                                               @Since("1.0.0") override val intercept: Double,
+                                               @Since("1.3.0") val numFeatures: Int,
+                                               @Since("1.3.0") val numClasses: Int)
   extends GeneralizedLinearModel(weights, intercept) with ClassificationModel with Serializable
     with Saveable with PMMLExportable {
 
-    if (numClasses == 2) {
-      require(weights.size == numFeatures,
-        s"LogisticRegressionModel with numClasses = 2 was given non-matching values:" +
+  if (numClasses == 2) {
+    require(weights.size == numFeatures,
+      s"LogisticRegressionModel with numClasses = 2 was given non-matching values:" +
         s" numFeatures = $numFeatures, but weights.size = ${weights.size}")
-    } else {
-      val weightsSizeWithoutIntercept = (numClasses - 1) * numFeatures
-      val weightsSizeWithIntercept = (numClasses - 1) * (numFeatures + 1)
-      require(weights.size == weightsSizeWithoutIntercept || weights.size == weightsSizeWithIntercept,
-        s"LogisticRegressionModel.load with numClasses = $numClasses and numFeatures = $numFeatures" +
+  } else {
+    val weightsSizeWithoutIntercept = (numClasses - 1) * numFeatures
+    val weightsSizeWithIntercept = (numClasses - 1) * (numFeatures + 1)
+    require(weights.size == weightsSizeWithoutIntercept || weights.size == weightsSizeWithIntercept,
+      s"LogisticRegressionModel.load with numClasses = $numClasses and numFeatures = $numFeatures" +
         s" expected weights of length $weightsSizeWithoutIntercept (without intercept)" +
         s" or $weightsSizeWithIntercept (with intercept)," +
         s" but was given weights of length ${weights.size}")
-    }
+  }
 
-    private val dataWithBiasSize: Int = weights.size / (numClasses - 1)
+  private val dataWithBiasSize: Int = weights.size / (numClasses - 1)
 
-    private val weightsArray: Array[Double] = weights match {
-      case dv: DenseVector => dv.values
-      case _ =>
-        throw new IllegalArgumentException(
-          s"weights only supports dense vector but got type ${weights.getClass}.")
-    }
+  private val weightsArray: Array[Double] = weights match {
+    case dv: DenseVector => dv.values
+    case _ =>
+      throw new IllegalArgumentException(
+        s"weights only supports dense vector but got type ${weights.getClass}.")
+  }
 
-    /**
-     * Constructs a [[LogisticRegressionModel]] with weights and intercept for binary spark.classification.
-     */
-    @Since("1.0.0")
-    def this(weights: Vector, intercept: Double) = this(weights, intercept, weights.size, 2)
+  /**
+    * Constructs a [[LogisticRegressionModel]] with weights and intercept for binary spark.classification.
+    */
+  @Since("1.0.0")
+  def this(weights: Vector, intercept: Double) = this(weights, intercept, weights.size, 2)
 
-    private var threshold: Option[Double] = Some(0.5)
+  private var threshold: Option[Double] = Some(0.5)
 
-    /**
-     * Sets the threshold that separates positive predictions from negative predictions
-     * in Binary Logistic Regression. An example with prediction score greater than or equal to
-     * this threshold is identified as a positive, and negative otherwise. The default value is 0.5.
-     * It is only used for binary spark.classification.
-     */
-    @Since("1.0.0")
-    def setThreshold(threshold: Double): this.type = {
-      this.threshold = Some(threshold)
-      this
-    }
+  /**
+    * Sets the threshold that separates positive predictions from negative predictions
+    * in Binary Logistic Regression. An example with prediction score greater than or equal to
+    * this threshold is identified as a positive, and negative otherwise. The default value is 0.5.
+    * It is only used for binary spark.classification.
+    */
+  @Since("1.0.0")
+  def setThreshold(threshold: Double): this.type = {
+    this.threshold = Some(threshold)
+    this
+  }
 
-    /**
-     * Returns the threshold (if any) used for converting raw prediction scores into 0/1 predictions.
-     * It is only used for binary spark.classification.
-     */
-    @Since("1.3.0")
-    def getThreshold: Option[Double] = threshold
+  /**
+    * Returns the threshold (if any) used for converting raw prediction scores into 0/1 predictions.
+    * It is only used for binary spark.classification.
+    */
+  @Since("1.3.0")
+  def getThreshold: Option[Double] = threshold
 
-    /**
-     * Clears the threshold so that `predict` will output raw prediction scores.
-     * It is only used for binary spark.classification.
-     */
-    @Since("1.0.0")
-    def clearThreshold(): this.type = {
-      threshold = None
-      this
-    }
+  /**
+    * Clears the threshold so that `predict` will output raw prediction scores.
+    * It is only used for binary spark.classification.
+    */
+  @Since("1.0.0")
+  def clearThreshold(): this.type = {
+    threshold = None
+    this
+  }
 
-    override protected def predictPoint(
-        dataMatrix: Vector,
-        weightMatrix: Vector,
-        intercept: Double) = {
-      require(dataMatrix.size == numFeatures)
+  override protected def predictPoint(
+                                       dataMatrix: Vector,
+                                       weightMatrix: Vector,
+                                       intercept: Double) = {
+    require(dataMatrix.size == numFeatures)
 
-      // If dataMatrix and weightMatrix have the same dimension, it's binary logistic regression.
-      if (numClasses == 2) {
-        val margin = dot(weightMatrix, dataMatrix) + intercept
-        val score = 1.0 / (1.0 + math.exp(-margin))
-        threshold match {
-          case Some(t) => if (score > t) 1.0 else 0.0
-          case None => score
-        }
-      } else {
-        /**
-         * Compute and find the one with maximum margins. If the maxMargin is negative, then the
-         * prediction result will be the first class.
-         *
-         * PS, if you want to compute the probabilities for each outcome instead of the outcome
-         * with maximum probability, remember to subtract the maxMargin from margins if maxMargin
-         * is positive to prevent overflow.
-         */
-        var bestClass = 0
-        var maxMargin = 0.0
-        val withBias = dataMatrix.size + 1 == dataWithBiasSize
-        (0 until numClasses - 1).foreach { i =>
-          var margin = 0.0
-          dataMatrix.foreachActive { (index, value) =>
-            if (value != 0.0) margin += value * weightsArray((i * dataWithBiasSize) + index)
-          }
-          // Intercept is required to be added into margin.
-          if (withBias) {
-            margin += weightsArray((i * dataWithBiasSize) + dataMatrix.size)
-          }
-          if (margin > maxMargin) {
-            maxMargin = margin
-            bestClass = i + 1
-          }
-        }
-        bestClass.toDouble
+    // If dataMatrix and weightMatrix have the same dimension, it's binary logistic regression.
+    if (numClasses == 2) {
+      val margin = dot(weightMatrix, dataMatrix) + intercept
+      val score = 1.0 / (1.0 + math.exp(-margin))
+      threshold match {
+        case Some(t) => if (score > t) 1.0 else 0.0
+        case None => score
       }
-    }
-
-    @Since("1.3.0")
-    override def save(sc: SparkContext, path: String): Unit = {
-      GLMClassificationModel.SaveLoadV1_0.save(sc, path, this.getClass.getName,
-        numFeatures, numClasses, weights, intercept, threshold)
-    }
-
-    override protected def formatVersion: String = "1.0"
-
-    override def toString: String = {
-      s"${super.toString}, numClasses = ${numClasses}, threshold = ${threshold.getOrElse("None")}"
+    } else {
+      /**
+        * Compute and find the one with maximum margins. If the maxMargin is negative, then the
+        * prediction result will be the first class.
+        *
+        * PS, if you want to compute the probabilities for each outcome instead of the outcome
+        * with maximum probability, remember to subtract the maxMargin from margins if maxMargin
+        * is positive to prevent overflow.
+        */
+      var bestClass = 0
+      var maxMargin = 0.0
+      val withBias = dataMatrix.size + 1 == dataWithBiasSize
+      (0 until numClasses - 1).foreach { i =>
+        var margin = 0.0
+        dataMatrix.foreachActive { (index, value) =>
+          if (value != 0.0) margin += value * weightsArray((i * dataWithBiasSize) + index)
+        }
+        // Intercept is required to be added into margin.
+        if (withBias) {
+          margin += weightsArray((i * dataWithBiasSize) + dataMatrix.size)
+        }
+        if (margin > maxMargin) {
+          maxMargin = margin
+          bestClass = i + 1
+        }
+      }
+      bestClass.toDouble
     }
   }
+
+  @Since("1.3.0")
+  override def save(sc: SparkContext, path: String): Unit = {
+    GLMClassificationModel.SaveLoadV1_0.save(sc, path, this.getClass.getName,
+      numFeatures, numClasses, weights, intercept, threshold)
+  }
+
+  override protected def formatVersion: String = "1.0"
+
+  override def toString: String = {
+    s"${super.toString}, numClasses = ${numClasses}, threshold = ${threshold.getOrElse("None")}"
+  }
+}
 
 @Since("1.3.0")
 object LogisticRegressionModel extends Loader[LogisticRegressionModel] {
@@ -185,7 +184,7 @@ object LogisticRegressionModel extends Loader[LogisticRegressionModel] {
         val data = GLMClassificationModel.SaveLoadV1_0.loadData(sc, path, classNameV1_0)
         // numFeatures, numClasses, weights are checked in model initialization
         val model =
-          new LogisticRegressionModel(data.weights, data.intercept, numFeatures, numClasses)
+        new LogisticRegressionModel(data.weights, data.intercept, numFeatures, numClasses)
         data.threshold match {
           case Some(t) => model.setThreshold(t)
           case None => model.clearThreshold()
@@ -193,26 +192,26 @@ object LogisticRegressionModel extends Loader[LogisticRegressionModel] {
         model
       case _ => throw new Exception(
         s"LogisticRegressionModel.load did not recognize model with (className, format version):" +
-        s"($loadedClassName, $version).  Supported:\n" +
-        s"  ($classNameV1_0, 1.0)")
+          s"($loadedClassName, $version).  Supported:\n" +
+          s"  ($classNameV1_0, 1.0)")
     }
   }
 }
 
 /**
- * Train a spark.classification model for Binary Logistic Regression
- * using Stochastic Gradient Descent. By default L2 regularization is used,
- * which can be changed via `LogisticRegressionWithSGD.optimizer`.
- * NOTE: Labels used in Logistic Regression should be {0, 1, ..., k - 1}
- * for k classes multi-label spark.classification problem.
- * Using [[LogisticRegressionWithLBFGS]] is recommended over this.
- */
+  * Train a spark.classification model for Binary Logistic Regression
+  * using Stochastic Gradient Descent. By default L2 regularization is used,
+  * which can be changed via `LogisticRegressionWithSGD.optimizer`.
+  * NOTE: Labels used in Logistic Regression should be {0, 1, ..., k - 1}
+  * for k classes multi-label spark.classification problem.
+  * Using [[LogisticRegressionWithLBFGS]] is recommended over this.
+  */
 @Since("0.8.0")
-class LogisticRegressionWithSgd(
-                                                 private var stepSize: Double,
-                                                 private var numIterations: Int,
-                                                 private var regParam: Double,
-                                                 private var miniBatchFraction: Double)
+class LogisticRegressionWithSGD (
+                                  private var stepSize: Double,
+                                  private var numIterations: Int,
+                                  private var regParam: Double,
+                                  private var miniBatchFraction: Double)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
   private val gradient = new LogisticGradient()
@@ -229,11 +228,10 @@ class LogisticRegressionWithSgd(
     * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
     * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
     */
-//  @Since("0.8.0")
-//  def this() = this(1.0, 100, 0.01, 1.0)
+  @Since("0.8.0")
+  def this() = this(1.0, 100, 0.01, 1.0)
 
   override protected  def createModel(weights: Vector, intercept: Double) = {
-
     new LogisticRegressionModel(weights, intercept)
   }
 }
@@ -245,10 +243,10 @@ class LogisticRegressionWithSgd(
   }}
  */
 class LogisticRegressionWithSGDMomentum (
-                                  private var stepSize: Double,
-                                  private var numIterations: Int,
-                                  private var regParam: Double,
-                                  private var miniBatchFraction: Double)
+                                          private var stepSize: Double,
+                                          private var numIterations: Int,
+                                          private var regParam: Double,
+                                          private var miniBatchFraction: Double)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
   private val gradient = new LogisticGradient()
@@ -264,11 +262,8 @@ class LogisticRegressionWithSGDMomentum (
     * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
     * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
     */
-//  @Since("0.8.0")
-
-//  def this() = this(1.0, 100, 0.01, 1.0)
-
-
+  @Since("0.8.0")
+  def this() = this(1.0, 100, 0.01, 1.0)
 
   override protected  def createModel(weights: Vector, intercept: Double) = {
     new LogisticRegressionModel(weights, intercept)
@@ -278,12 +273,11 @@ class LogisticRegressionWithSGDMomentum (
 
 // this is LogisticRegressionWithAdagram
 class LogisticRegressionWithAdagram  (
-                                   private var stepSize: Double,
-                                   private var numIterations: Int,
-                                   private var regParam: Double,
-                                   private var miniBatchFraction: Double)
+                                       private var stepSize: Double,
+                                       private var numIterations: Int,
+                                       private var regParam: Double,
+                                       private var miniBatchFraction: Double)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
-
 
   private val gradient = new LogisticGradient()
   private val updater = new SquaredL2Updater()
@@ -319,10 +313,10 @@ class LogisticRegressionWithAdagram  (
   Note: currently a = b = 1/sqrt(t) t= iteration time
  */
 class LogisticRegressionWithSGDSVRG (
-                                          private var stepSize: Double,
-                                          private var numIterations: Int,
-                                          private var regParam: Double,
-                                          private var miniBatchFraction: Double)
+                                      private var stepSize: Double,
+                                      private var numIterations: Int,
+                                      private var regParam: Double,
+                                      private var miniBatchFraction: Double)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
   private val gradient = new LogisticGradient()
@@ -338,20 +332,20 @@ class LogisticRegressionWithSGDSVRG (
     * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
     * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
     */
-//  @Since("0.8.0")
-//  @deprecated("Use ml.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
-//  def this() = this(1.0, 100, 0.01, 1.0)
+  @Since("0.8.0")
+  @deprecated("Use ml.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
+  def this() = this(1.0, 100, 0.01, 1.0)
 
   override protected  def createModel(weights: Vector, intercept: Double) = {
     new LogisticRegressionModel(weights, intercept)
   }
 }
 class LogisticRegressionWithSGDSVRG2 (
-                                      private var stepSize: Double,
-                                      private var numIterations: Int,
-                                      private var regParam: Double,
-                                      private var miniBatchFraction: Double,
-                                      private var sampleForMean:Double)
+                                       private var stepSize: Double,
+                                       private var numIterations: Int,
+                                       private var regParam: Double,
+                                       private var miniBatchFraction: Double,
+                                       private var sampleForMean:Double)
   extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
   private val gradient = new LogisticGradient()
@@ -376,96 +370,96 @@ class LogisticRegressionWithSGDSVRG2 (
   }
 }
 /**
- * Top-level methods for calling Logistic Regression using Stochastic Gradient Descent.
- * NOTE: Labels used in Logistic Regression should be {0, 1}
- */
+  * Top-level methods for calling Logistic Regression using Stochastic Gradient Descent.
+  * NOTE: Labels used in Logistic Regression should be {0, 1}
+  */
 @Since("0.8.0")
 //@deprecated("Use ml.spark.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
-object LogisticRegressionWithSgd {
+object LogisticRegressionWithSGD {
   // NOTE(shivaram): We use multiple train methods instead of default arguments to support
   // Java programs.
 
   /**
-   * Train a logistic regression model given an RDD of (label, features) pairs. We run a fixed
-   * number of iterations of gradient descent using the specified step size. Each iteration uses
-   * `miniBatchFraction` fraction of the data to calculate the gradient. The weights used in
-   * gradient descent are initialized using the initial weights provided.
-   * NOTE: Labels used in Logistic Regression should be {0, 1}
-   *
-   * @param input RDD of (label, array of features) pairs.
-   * @param numIterations Number of iterations of gradient descent to run.
-   * @param stepSize Step size to be used for each iteration of gradient descent.
-   * @param miniBatchFraction Fraction of data to be used per iteration.
-   * @param initialWeights Initial set of weights to be used. Array should be equal in size to
-   *        the number of features in the data.
-   */
+    * Train a logistic regression model given an RDD of (label, features) pairs. We run a fixed
+    * number of iterations of gradient descent using the specified step size. Each iteration uses
+    * `miniBatchFraction` fraction of the data to calculate the gradient. The weights used in
+    * gradient descent are initialized using the initial weights provided.
+    * NOTE: Labels used in Logistic Regression should be {0, 1}
+    *
+    * @param input RDD of (label, array of features) pairs.
+    * @param numIterations Number of iterations of gradient descent to run.
+    * @param stepSize Step size to be used for each iteration of gradient descent.
+    * @param miniBatchFraction Fraction of data to be used per iteration.
+    * @param initialWeights Initial set of weights to be used. Array should be equal in size to
+    *        the number of features in the data.
+    */
   @Since("1.0.0")
   def train(
-      input: RDD[LabeledPoint],
-      numIterations: Int,
-      stepSize: Double,
-      miniBatchFraction: Double,
-      initialWeights: Vector): LogisticRegressionModel = {
-    new LogisticRegressionWithSgd(stepSize, numIterations, 0.0, miniBatchFraction)
+             input: RDD[LabeledPoint],
+             numIterations: Int,
+             stepSize: Double,
+             miniBatchFraction: Double,
+             initialWeights: Vector): LogisticRegressionModel = {
+    new LogisticRegressionWithSGD(stepSize, numIterations, 0.0, miniBatchFraction)
       .run(input, initialWeights)
   }
 
   /**
-   * Train a logistic regression model given an RDD of (label, features) pairs. We run a fixed
-   * number of iterations of gradient descent using the specified step size. Each iteration uses
-   * `miniBatchFraction` fraction of the data to calculate the gradient.
-   * NOTE: Labels used in Logistic Regression should be {0, 1}
-   *
-   * @param input RDD of (label, array of features) pairs.
-   * @param numIterations Number of iterations of gradient descent to run.
-   * @param stepSize Step size to be used for each iteration of gradient descent.
+    * Train a logistic regression model given an RDD of (label, features) pairs. We run a fixed
+    * number of iterations of gradient descent using the specified step size. Each iteration uses
+    * `miniBatchFraction` fraction of the data to calculate the gradient.
+    * NOTE: Labels used in Logistic Regression should be {0, 1}
+    *
+    * @param input RDD of (label, array of features) pairs.
+    * @param numIterations Number of iterations of gradient descent to run.
+    * @param stepSize Step size to be used for each iteration of gradient descent.
 
-   * @param miniBatchFraction Fraction of data to be used per iteration.
-   */
+    * @param miniBatchFraction Fraction of data to be used per iteration.
+    */
   @Since("1.0.0")
   def train(
-      input: RDD[LabeledPoint],
-      numIterations: Int,
-      stepSize: Double,
-      miniBatchFraction: Double): LogisticRegressionModel = {
-    new LogisticRegressionWithSgd(stepSize, numIterations, 0.0, miniBatchFraction)
+             input: RDD[LabeledPoint],
+             numIterations: Int,
+             stepSize: Double,
+             miniBatchFraction: Double): LogisticRegressionModel = {
+    new LogisticRegressionWithSGD(stepSize, numIterations, 0.0, miniBatchFraction)
       .run(input)
   }
 
   /**
-   * Train a logistic regression model given an RDD of (label, features) pairs. We run a fixed
-   * number of iterations of gradient descent using the specified step size. We use the entire data
-   * set to update the gradient in each iteration.
-   * NOTE: Labels used in Logistic Regression should be {0, 1}
-   *
-   * @param input RDD of (label, array of features) pairs.
-   * @param stepSize Step size to be used for each iteration of Gradient Descent.
+    * Train a logistic regression model given an RDD of (label, features) pairs. We run a fixed
+    * number of iterations of gradient descent using the specified step size. We use the entire data
+    * set to update the gradient in each iteration.
+    * NOTE: Labels used in Logistic Regression should be {0, 1}
+    *
+    * @param input RDD of (label, array of features) pairs.
+    * @param stepSize Step size to be used for each iteration of Gradient Descent.
 
-   * @param numIterations Number of iterations of gradient descent to run.
-   * @return a LogisticRegressionModel which has the weights and offset from training.
-   */
+    * @param numIterations Number of iterations of gradient descent to run.
+    * @return a LogisticRegressionModel which has the weights and offset from training.
+    */
   @Since("1.0.0")
   def train(
-      input: RDD[LabeledPoint],
-      numIterations: Int,
-      stepSize: Double): LogisticRegressionModel = {
+             input: RDD[LabeledPoint],
+             numIterations: Int,
+             stepSize: Double): LogisticRegressionModel = {
     train(input, numIterations, stepSize, 1.0)
   }
 
   /**
-   * Train a logistic regression model given an RDD of (label, features) pairs. We run a fixed
-   * number of iterations of gradient descent using a step size of 1.0. We use the entire data set
-   * to update the gradient in each iteration.
-   * NOTE: Labels used in Logistic Regression should be {0, 1}
-   *
-   * @param input RDD of (label, array of features) pairs.
-   * @param numIterations Number of iterations of gradient descent to run.
-   * @return a LogisticRegressionModel which has the weights and offset from training.
-   */
+    * Train a logistic regression model given an RDD of (label, features) pairs. We run a fixed
+    * number of iterations of gradient descent using a step size of 1.0. We use the entire data set
+    * to update the gradient in each iteration.
+    * NOTE: Labels used in Logistic Regression should be {0, 1}
+    *
+    * @param input RDD of (label, array of features) pairs.
+    * @param numIterations Number of iterations of gradient descent to run.
+    * @return a LogisticRegressionModel which has the weights and offset from training.
+    */
   @Since("1.0.0")
   def train(
-      input: RDD[LabeledPoint],
-      numIterations: Int): LogisticRegressionModel = {
+             input: RDD[LabeledPoint],
+             numIterations: Int): LogisticRegressionModel = {
     train(input, numIterations, 1.0, 1.0)
   }
 }
