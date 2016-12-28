@@ -171,8 +171,8 @@ class AdaGradUpdater extends SquaredL2Updater {
     //brzWeights :*= (1.0 - thisIterStepSize * regParam)
     val n = weightsOld.size
     for (i <- 0 until n) {
-      brzWeights(i) *= (1 -  regParam * eta(i))
-      brzWeights(i) -=  gradient(i) * eta(i)
+      brzWeights(i) *= (1 -  stepSize*regParam * eta(i))
+      brzWeights(i) -=  stepSize * gradient(i) * eta(i)
     }
     //brzAxpy(-thisIterStepSize, gradient.asBreeze, brzWeights)
     val norm = brzNorm(brzWeights, 2.0)

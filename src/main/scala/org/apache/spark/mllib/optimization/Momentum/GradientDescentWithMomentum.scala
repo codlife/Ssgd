@@ -284,6 +284,7 @@ object GradientDescentWithMomentum extends Logging {
     val endtime = System.nanoTime()
     println("time using" + (endtime - starttime)/1000000)
     logWarning("time using" + (endtime - starttime)/1000000)
+    println("this is iteration" + i)
 
     logInfo("spark.optimization.SGD.GradientDescent.runMiniBatchSGD finished. Last 10 stochastic losses %s".format(
       stochasticLossHistory.takeRight(10).mkString(", ")))
@@ -317,7 +318,7 @@ object GradientDescentWithMomentum extends Logging {
 
       // This represents the difference of updated weights in the iteration.
       val solutionVecDiff: Double = brzNorm(previousBDV - currentBDV)
-      println(solutionVecDiff / Math.max(brzNorm(currentBDV),1.0))
+      println("-----------------------" + solutionVecDiff / Math.max(brzNorm(currentBDV),1.0))
       solutionVecDiff < convergenceTol * Math.max(brzNorm(currentBDV), 1.0)
     }
 

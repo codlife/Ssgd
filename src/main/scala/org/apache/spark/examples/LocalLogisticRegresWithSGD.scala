@@ -112,7 +112,7 @@ object LocalLogisticRegresWithSGD {
 
 
       println("adagrad is running")
-      val sgd = new LogisticRegressionWithAdagrad(1.0, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
+      val sgd = new LogisticRegressionWithAdagrad(1, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
       val model = sgd.run(training)
       model.clearThreshold()
       val predictionAndLabels = test.map { case LabeledPoint(label, features) =>

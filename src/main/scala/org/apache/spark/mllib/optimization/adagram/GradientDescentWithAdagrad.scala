@@ -42,7 +42,7 @@ class GradientDescentWithAdagrad(private var gradient: Gradient, private var upd
   private var numIterations: Int = 100
   private var regParam: Double = 0.0
   private var miniBatchFraction: Double = 1.0
-  private var convergenceTol: Double = 0.001
+  private var convergenceTol: Double = 0.0000001
 
   /**
     * Set the initial step size of SGD for the first step. Default 1.0.
@@ -192,6 +192,8 @@ object GradientDescentWithAdagrad extends Logging {
                        initialWeights: Vector,
                        convergenceTol: Double): (Vector, Array[Double]) = {
 
+    val starttime = System.nanoTime()
+
     // convergenceTol should be set with non minibatch settings
     if (miniBatchFraction < 1.0 && convergenceTol > 0.0) {
       logWarning("Testing against a convergenceTol when using miniBatchFraction " +
@@ -241,9 +243,6 @@ object GradientDescentWithAdagrad extends Logging {
     while (!converged && i <= numIterations) {
       val bcWeights = data.context.broadcast(weights)
 
-
-
-
       // Sample a subset (fraction miniBatchFraction) of the total data
       // compute and sum up the subgradients on this subset (this is one map-reduce)
       val (gradientSum, lossSum, miniBatchSize) = data.sample(false, miniBatchFraction, 42 + i)
@@ -264,14 +263,21 @@ object GradientDescentWithAdagrad extends Logging {
         for (k <- 0 until n) {
           val temp = gradientSum(k) / miniBatchSize
           gradientHistory(k) +=  temp * temp
-          if(k<10) {
-            println("this is history" + gradientHistory(k))
-            println(temp)
-            println(gradientHistory(k))
-          }
 
           //        print("this is eta"+gradientHistory(k))
-          eta(k) = 1.0/sqrt(gradientHistory(k) + 1e-8)
+
+          if(gradientHistory(k) == 0) {
+            eta(k) = 1
+          } else {
+            eta(k) = 1.0/sqrt(gradientHistory(k) + 1e-8)
+          }
+
+          if(k<10) {
+            println("this is history" + gradientHistory(k))
+            println(eta(k))
+            println(stepSize)
+            println(eta(k) * stepSize )
+          }
 
         }
         /**
@@ -301,6 +307,8 @@ object GradientDescentWithAdagrad extends Logging {
 
     println("****")
     println(i)
+    val endtime = System.nanoTime()
+    println("time using" + (endtime - starttime)/1000000)
     (weights, stochasticLossHistory.toArray)
 
   }
@@ -331,6 +339,7 @@ object GradientDescentWithAdagrad extends Logging {
 
     // This represents the difference of updated weights in the iteration.
     val solutionVecDiff: Double = norm(previousBDV - currentBDV)
+    println("-----------------------------"+solutionVecDiff / Math.max(norm(currentBDV),1.0))
 
     solutionVecDiff < convergenceTol * Math.max(norm(currentBDV), 1.0)
   }

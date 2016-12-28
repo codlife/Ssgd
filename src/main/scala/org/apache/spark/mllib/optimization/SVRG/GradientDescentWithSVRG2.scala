@@ -367,7 +367,7 @@ object GradientDescentWithSVRG2 extends Logging {
 
     // This represents the difference of updated weights in the iteration.
     val solutionVecDiff: Double = brzNorm(previousBDV - currentBDV)
-    println(solutionVecDiff / Math.max(brzNorm(currentBDV),1.0))
+    println("-----------------------------"+solutionVecDiff / Math.max(brzNorm(currentBDV),1.0))
     solutionVecDiff < convergenceTol * Math.max(brzNorm(currentBDV), 1.0)
   }
 

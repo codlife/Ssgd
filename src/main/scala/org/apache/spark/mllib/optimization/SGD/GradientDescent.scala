@@ -313,7 +313,7 @@ object GradientDescent extends Logging {
 
     // This represents the difference of updated weights in the iteration.
     val solutionVecDiff: Double = norm(previousBDV - currentBDV)
-    println(solutionVecDiff / Math.max(norm(currentBDV),1.0))
+    println("-------------------------" + solutionVecDiff / Math.max(norm(currentBDV),1.0))
 
     solutionVecDiff < convergenceTol * Math.max(norm(currentBDV), 1.0)
   }
