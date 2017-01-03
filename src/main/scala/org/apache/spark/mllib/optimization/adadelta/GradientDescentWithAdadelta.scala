@@ -263,19 +263,20 @@ object GradientDescentWithAdadelta extends Logging {
         //Adagrad: store historical gradient sum of each column
         //      print("this is gradient" + gradientSum )
         for (k <- 0 until n) {
-          val temp = gradientSum(k) / miniBatchSize
+          // default we use l2 regularization, regParam * weights(k) is the regularization term
+          val temp = gradientSum(k) / miniBatchSize + regParam * weights(k)
           gradientHistory(k) = gradientHistory(k) * 0.95 +  0.05* temp * temp
           //        print("this is eta"+gradientHistory(k))
 
-          val tx = sqrt(deltax(k) + 1e-6)/sqrt(gradientHistory(k) + 1e-6) * (temp + regParam * weights(k))
+          val tx = sqrt(deltax(k) + 1e-6)/sqrt(gradientHistory(k) + 1e-6) * temp
           deltax(k) = deltax(k) * 0.95 + 0.05 * tx * tx
 
-          if(k<10) {
-            println("this is history" + gradientHistory(k))
-            println(eta(k))
-            println(stepSize)
-            println(eta(k) * stepSize )
-          }
+//          if(k<10) {
+//            println("this is history" + gradientHistory(k))
+//            println(eta(k))
+//            println(stepSize)
+//            println(eta(k) * stepSize )
+//          }
 
         }
 
