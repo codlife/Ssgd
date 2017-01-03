@@ -1,7 +1,7 @@
 package org.apache.spark.examples
 
 
-import org.apache.spark.mllib.classification.{LogisticRegressionWithAdagrad, LogisticRegressionWithSGDMomentum, LogisticRegressionWithSGDSVRG2, LogisticRegressionWithSgd}
+import org.apache.spark.mllib.classification._
 import org.apache.spark.mllib.evaluation.BinaryClassificationMetrics
 import org.apache.spark.mllib.regression.LabeledPoint
 import org.apache.spark.mllib.util.MLUtils
@@ -107,6 +107,25 @@ object LogisticRegresWithSGD {
 
      println("adagrad is running")
      val sgd = new LogisticRegressionWithAdagrad(1.0, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
+     val model = sgd.run(training)
+     model.clearThreshold()
+     val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
+       val prediction = model.predict(features)
+       (label, prediction)
+     }
+     val metric = new BinaryClassificationMetrics(predictionAndLabels)
+     val auROC = metric.areaUnderROC()
+     println("AREA under ROC = " + auROC)
+     println(data.count())
+     val end = System.nanoTime()
+
+     println("this is time" + (end - start) / 1000000)
+   }else if(algorithm == "adadelta") {
+
+
+
+     println("adadelta is running")
+     val sgd = new LogisticRegressionWithAdadelta(1, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
      val model = sgd.run(training)
      model.clearThreshold()
      val predictionAndLabels = test.map { case LabeledPoint(label, features) =>

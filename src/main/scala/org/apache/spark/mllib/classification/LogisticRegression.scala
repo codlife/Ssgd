@@ -25,7 +25,8 @@ import org.apache.spark.mllib.optimization.Momentum.GradientDescentWithMomentum
 import org.apache.spark.mllib.optimization.{AdaGradUpdater, LogisticGradient, Optimizer, SquaredL2Updater}
 import org.apache.spark.mllib.optimization.SGD.GradientDescent
 import org.apache.spark.mllib.optimization.SVRG.{GradientDescentWithSVRG, GradientDescentWithSVRG2}
-import org.apache.spark.mllib.optimization.adagram.GradientDescentWithAdagrad
+import org.apache.spark.mllib.optimization.adadelta.GradientDescentWithAdadelta
+import org.apache.spark.mllib.optimization.adagrad.GradientDescentWithAdagrad
 import org.apache.spark.mllib.pmml.PMMLExportable
 import org.apache.spark.mllib.regression._
 import org.apache.spark.mllib.util.{DataValidators, Loader, Saveable}
@@ -305,7 +306,37 @@ class LogisticRegressionWithAdagrad  (
     new LogisticRegressionModel(weights, intercept)
   }
 }
+class LogisticRegressionWithAdadelta  (
+                                       private var stepSize: Double,
+                                       private var numIterations: Int,
+                                       private var regParam: Double,
+                                       private var miniBatchFraction: Double,
+                                       private var convergeTo:Double)
+  extends GeneralizedLinearAlgorithm[LogisticRegressionModel] with Serializable {
 
+  private val gradient = new LogisticGradient()
+  private val updater = new AdaGradUpdater()
+  @Since("0.8.0")
+  override val optimizer = new GradientDescentWithAdadelta(gradient, updater)
+    .setStepSize(stepSize)
+    .setNumIterations(numIterations)
+    .setRegParam(regParam)
+    .setMiniBatchFraction(miniBatchFraction)
+    .setConvergenceTol(convergeTo)
+  override protected val validators = List(DataValidators.binaryLabelValidator)
+
+  /**
+    * Construct a LogisticRegression object with default parameters: {stepSize: 1.0,
+    * numIterations: 100, regParm: 0.01, miniBatchFraction: 1.0}.
+    */
+  //  @Since("0.8.0")
+  //  @deprecated("Use ml.spark.classification.LogisticRegression or LogisticRegressionWithLBFGS", "2.0.0")
+  //  def this() = this(1.0, 100, 0.01, 1.0,0.0000001)
+
+  override protected[mllib] def createModel(weights: Vector, intercept: Double) = {
+    new LogisticRegressionModel(weights, intercept)
+  }
+}
 
 /*
   this is LogisticRegressionWithSGDSVRG

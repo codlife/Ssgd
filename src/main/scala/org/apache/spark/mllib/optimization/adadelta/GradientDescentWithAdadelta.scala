@@ -1,4 +1,4 @@
-package org.apache.spark.mllib.optimization.adagram
+package org.apache.spark.mllib.optimization.adadelta
 
 /**
   * Created by kly on 2016/12/8.
@@ -21,21 +21,22 @@ package org.apache.spark.mllib.optimization.adagram
  * limitations under the License.
  */
 
-import scala.collection.mutable.ArrayBuffer
 import breeze.linalg.{norm, DenseVector => BDV}
 import org.apache.spark.internal.Logging
 import org.apache.spark.mllib.linalg.{Vector, Vectors}
 import org.apache.spark.mllib.optimization._
 import org.apache.spark.rdd.RDD
 
+import scala.collection.mutable.ArrayBuffer
 import scala.math._
+
 /**
   * Class used to solve an spark.optimization problem using Gradient Descent.
   *
   * @param gradient Gradient function to be used.
   * @param updater Updater to be used to update weights after every iteration.
   */
-class GradientDescentWithAdagrad(private var gradient: Gradient, private var updater: AdaGradUpdater)
+class GradientDescentWithAdadelta(private var gradient: Gradient, private var updater: AdaGradUpdater)
   extends Optimizer with Logging {
 
   private var stepSize: Double = 1.0
@@ -135,7 +136,7 @@ class GradientDescentWithAdagrad(private var gradient: Gradient, private var upd
     */
 
   def optimize(data: RDD[(Double, Vector)], initialWeights: Vector): Vector = {
-    val (weights, _) = GradientDescentWithAdagrad.runMiniBatchSGD(
+    val (weights, _) = GradientDescentWithAdadelta.runMiniBatchSGD(
       data,
       gradient,
       updater,
@@ -155,7 +156,7 @@ class GradientDescentWithAdagrad(private var gradient: Gradient, private var upd
   * Top-level method to run gradient descent.
   */
 
-object GradientDescentWithAdagrad extends Logging {
+object GradientDescentWithAdadelta extends Logging {
   /**
     * Run stochastic gradient descent (SGD) in parallel using mini batches.
     * In each iteration, we sample a subset (fraction miniBatchFraction) of the total data
@@ -240,6 +241,7 @@ object GradientDescentWithAdagrad extends Logging {
     //Adagram: define of G
     val eta = BDV.zeros[Double](n)
     val gradientHistory = BDV.zeros[Double](n)
+    val deltax = BDV.zeros[Double](n)
     while (!converged && i <= numIterations) {
       val bcWeights = data.context.broadcast(weights)
 
@@ -262,15 +264,11 @@ object GradientDescentWithAdagrad extends Logging {
         //      print("this is gradient" + gradientSum )
         for (k <- 0 until n) {
           val temp = gradientSum(k) / miniBatchSize
-          gradientHistory(k) +=  temp * temp
-
+          gradientHistory(k) = gradientHistory(k) * 0.95 +  0.05* temp * temp
           //        print("this is eta"+gradientHistory(k))
 
-          if(gradientHistory(k) == 0) {
-            eta(k) = 1
-          } else {
-            eta(k) = 1.0/sqrt(gradientHistory(k) + 1e-8)
-          }
+          val tx = sqrt(deltax(k) + 1e-6)/sqrt(gradientHistory(k) + 1e-6) * (temp + regParam * weights(k))
+          deltax(k) = deltax(k) * 0.95 + 0.05 * tx * tx
 
           if(k<10) {
             println("this is history" + gradientHistory(k))
@@ -280,16 +278,19 @@ object GradientDescentWithAdagrad extends Logging {
           }
 
         }
+
+        weights =Vectors.fromBreeze(weights.asBreeze.toDenseVector + deltax)
+
         /**
           * lossSum is computed using the weights from the previous iteration
           * and regVal is the regularization value computed in the previous iteration as well.
           */
-        stochasticLossHistory += lossSum / miniBatchSize + regVal
-        //Adagrad: transmit the learning rate with G
-       val update = updater.compute2(weights, Vectors.fromBreeze(gradientSum / miniBatchSize.toDouble),
-                                                  stepSize, i, regParam, eta)
-        weights = update._1
-        regVal = update._2
+//        stochasticLossHistory += lossSum / miniBatchSize + regVal
+//        //Adagrad: transmit the learning rate with G
+//       val update = updater.compute2(weights, Vectors.fromBreeze(gradientSum / miniBatchSize.toDouble),
+//                                                  stepSize, i, regParam, eta)
+//        weights = update._1
+//        regVal = update._2
         previousWeights = currentWeights
         currentWeights = Some(weights)
         if (previousWeights != None && currentWeights != None) {
@@ -325,7 +326,7 @@ object GradientDescentWithAdagrad extends Logging {
                        regParam: Double,
                        miniBatchFraction: Double,
                        initialWeights: Vector): (Vector, Array[Double]) =
-  GradientDescentWithAdagrad.runMiniBatchSGD(data, gradient, updater, stepSize, numIterations,
+  GradientDescentWithAdadelta.runMiniBatchSGD(data, gradient, updater, stepSize, numIterations,
     regParam, miniBatchFraction, initialWeights, 0.001)
 
 
