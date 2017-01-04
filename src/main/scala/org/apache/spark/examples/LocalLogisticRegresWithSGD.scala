@@ -112,7 +112,7 @@ object LocalLogisticRegresWithSGD {
 
 
       println("adagrad is running")
-      val sgd = new LogisticRegressionWithAdagrad(1, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
+      val sgd = new LogisticRegressionWithAdagrad(0.01, iteration, 1, sampleFraction.toDouble,convergeTo.toDouble)
       val model = sgd.run(training)
       model.clearThreshold()
       val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
@@ -144,6 +144,23 @@ object LocalLogisticRegresWithSGD {
       println(data.count())
       val end = System.nanoTime()
 
+      println("this is time" + (end - start) / 1000000)
+    }else if(algorithm == "adam") {
+
+
+      println("adam is running")
+      val sgd = new LogisticRegressionWithAdam(0.001, iteration, 1, sampleFraction.toDouble, convergeTo.toDouble)
+      val model = sgd.run(training)
+      model.clearThreshold()
+      val predictionAndLabels = test.map { case LabeledPoint(label, features) =>
+        val prediction = model.predict(features)
+        (label, prediction)
+      }
+      val metric = new BinaryClassificationMetrics(predictionAndLabels)
+      val auROC = metric.areaUnderROC()
+      println("AREA under ROC = " + auROC)
+      println(data.count())
+      val end = System.nanoTime()
       println("this is time" + (end - start) / 1000000)
     }
     //    val sgd = new LogisticRegressionWithSGDSVRG(1.0, 1, 1, 1)
